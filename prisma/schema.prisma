@@ -42,6 +42,9 @@ model User {
   role         UserRole  @default(TRAINER)
   tgChatId     String?   @map("tg_chat_id")
 
+  hashedRefreshToken String? @map("hashed_refresh_token")
+  tgLinkToken        String? @unique @map("tg_link_token")
+
   clients      Client[]
   locations    Location[]
   sessions     WorkoutSession[]
