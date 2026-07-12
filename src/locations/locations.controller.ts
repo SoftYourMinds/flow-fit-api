@@ -9,26 +9,26 @@ export class LocationsController {
 
   @Get()
   findAll(@Req() req: any) {
-    return this.locationsService.findAll(req.user.sub);
+    return this.locationsService.findAll(req.user.id);
   }
 
   @Get(':id')
   findOne(@Param('id') id: string, @Req() req: any) {
-    return this.locationsService.findOne(+id, req.user.sub);
+    return this.locationsService.findOne(+id, req.user.id);
   }
 
   @Post()
   create(@Body() body: any, @Req() req: any) {
-    return this.locationsService.create(req.user.sub, body);
+    return this.locationsService.create(req.user.id, body);
   }
 
   @Put(':id')
   update(@Param('id') id: string, @Body() body: any, @Req() req: any) {
-    return this.locationsService.update(+id, req.user.sub, body);
+    return this.locationsService.update(+id, req.user.id, body);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string, @Req() req: any) {
-    return this.locationsService.remove(+id, req.user.sub);
+    return this.locationsService.remove(+id, req.user.id);
   }
 }
