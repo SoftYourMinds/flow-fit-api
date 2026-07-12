@@ -99,9 +99,10 @@ model MetricsHistory {
   clientId     Int      @map("client_id")
   client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
-  weight       Float?
-  measurements String?
-  note         String?
+  weight            Float?
+  bodyFatPercentage Float?   @map("body_fat_percentage")
+  measurements      String?
+  note              String?
 
   createdAt    DateTime @default(now()) @map("created_at")
 
@@ -158,6 +159,8 @@ model SessionParticipant {
   client     Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   customName String?  @map("custom_name")
+  isAttended Boolean? @map("is_attended")
+  isPaid     Boolean  @default(false) @map("is_paid")
 
   createdAt  DateTime @default(now()) @map("created_at")
 

@@ -9,6 +9,15 @@ export class ClientsService {
   async findAll(trainerId: number): Promise<Client[]> {
     return this.prisma.client.findMany({
       where: { trainerId, isActive: true },
+      include: {
+        _count: {
+          select: { notes: true }
+        },
+        metrics: {
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        }
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -21,8 +30,8 @@ export class ClientsService {
         metrics: { orderBy: { createdAt: 'desc' } },
         participations: {
           include: { session: true },
-          orderBy: { createdAt: 'desc' },
-          take: 10,
+          orderBy: { session: { startTime: 'desc' } },
+          take: 50,
         }
       }
     });
