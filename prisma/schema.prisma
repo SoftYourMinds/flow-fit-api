@@ -1,0 +1,164 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  TRAINER
+}
+
+enum LocationType {
+  STUDIO
+  GYM
+  OUTDOOR
+}
+
+enum SessionType {
+  INDIVIDUAL
+  GROUP
+}
+
+enum SessionStatus {
+  UPCOMING
+  ACTIVE
+  REQUIRED_ACTION
+  COMPLETED
+  MISSED
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  firstName    String    @map("first_name")
+  lastName     String    @map("last_name")
+  role         UserRole  @default(TRAINER)
+  tgChatId     String?   @map("tg_chat_id")
+
+  clients      Client[]
+  locations    Location[]
+  sessions     WorkoutSession[]
+
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Client {
+  id              Int       @id @default(autoincrement())
+  trainerId       Int       @map("trainer_id")
+  trainer         User      @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  fullName        String    @map("full_name")
+  phone           String?
+  goal            String?
+  personalInfo    String?   @map("personal_info")
+  currentWeight   Float?    @map("current_weight")
+  comments        String?
+  gDriveFolderUrl String?   @map("g_drive_folder_url")
+  isActive        Boolean   @default(true) @map("is_active")
+
+  notes          ClientNote[]
+  metrics        MetricsHistory[]
+  participations SessionParticipant[]
+
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([trainerId])
+  @@map("clients")
+}
+
+model ClientNote {
+  id        Int      @id @default(autoincrement())
+  clientId  Int      @map("client_id")
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  text      String
+  links     String[] @default([])
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([clientId])
+  @@map("client_notes")
+}
+
+model MetricsHistory {
+  id           Int      @id @default(autoincrement())
+  clientId     Int      @map("client_id")
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  weight       Float?
+  measurements String?
+  note         String?
+
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([clientId])
+  @@map("metrics_history")
+}
+
+model Location {
+  id        Int          @id @default(autoincrement())
+  trainerId Int          @map("trainer_id")
+  trainer   User         @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  name      String
+  type      LocationType @default(STUDIO)
+  address   String?
+
+  sessions  WorkoutSession[]
+
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  @@index([trainerId])
+  @@map("locations")
+}
+
+model WorkoutSession {
+  id             Int           @id @default(autoincrement())
+  trainerId      Int           @map("trainer_id")
+  trainer        User          @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  locationId     Int           @map("location_id")
+  location       Location      @relation(fields: [locationId], references: [id])
+
+  type           SessionType   @default(INDIVIDUAL)
+  startTime      DateTime      @map("start_time")
+  endTime        DateTime      @map("end_time")
+  pricePerPerson Float         @default(0) @map("price_per_person")
+  status         SessionStatus @default(UPCOMING)
+
+  participants   SessionParticipant[]
+
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  @@index([trainerId])
+  @@index([trainerId, startTime])
+  @@index([status])
+  @@map("workout_sessions")
+}
+
+model SessionParticipant {
+  id         Int      @id @default(autoincrement())
+  sessionId  Int      @map("session_id")
+  session    WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  clientId   Int?     @map("client_id")
+  client     Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  customName String?  @map("custom_name")
+
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([sessionId])
+  @@index([clientId])
+  @@map("session_participants")
+}
