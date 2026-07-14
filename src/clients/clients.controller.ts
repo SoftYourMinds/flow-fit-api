@@ -38,6 +38,11 @@ export class ClientsController {
     return this.clientsService.addNote(+id, req.user.id, body);
   }
 
+  @Put(':id/notes/:noteId')
+  updateNote(@Param('id') id: string, @Param('noteId') noteId: string, @Body() body: any, @Req() req: any) {
+    return this.clientsService.updateNote(+id, +noteId, req.user.id, body);
+  }
+
   @Post(':id/metrics')
   addMetric(@Param('id') id: string, @Body() body: any, @Req() req: any) {
     return this.clientsService.addMetric(+id, req.user.id, body);

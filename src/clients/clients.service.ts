@@ -76,6 +76,22 @@ export class ClientsService {
     });
   }
 
+  async updateNote(clientId: number, noteId: number, trainerId: number, data: { text: string, links?: string[] }): Promise<ClientNote> {
+    await this.findOne(clientId, trainerId);
+    const note = await this.prisma.clientNote.findFirst({
+      where: { id: noteId, clientId }
+    });
+    if (!note) throw new NotFoundException(`Note #${noteId} not found`);
+
+    return this.prisma.clientNote.update({
+      where: { id: noteId },
+      data: {
+        text: data.text,
+        links: data.links || [],
+      }
+    });
+  }
+
   async addMetric(clientId: number, trainerId: number, data: Omit<Prisma.MetricsHistoryCreateInput, 'client'>): Promise<MetricsHistory> {
     const client = await this.findOne(clientId, trainerId);
     const metric = await this.prisma.metricsHistory.create({
