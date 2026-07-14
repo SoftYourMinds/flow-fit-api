@@ -86,15 +86,15 @@
 **Goal:** Financial and operational analytics for the trainer.
 
 ### Backend
-- [ ] Reports module: income endpoint (period-based)
-- [ ] Reports module: statistics endpoint
-- [ ] Aggregation queries for completed sessions, hours, missed rate
+- [x] Reports module: income endpoint (period-based)
+- [x] Reports module: statistics endpoint
+- [x] Aggregation queries for completed sessions, hours, missed rate
 
 ### Frontend
-- [ ] Reports page: income summary (week/month selector)
-- [ ] Income breakdown: individual vs group
-- [ ] Statistics cards: total clients, sessions/week, missed rate
-- [ ] Period selector (date range picker)
+- [x] Reports page: income summary (week/month selector)
+- [x] Income breakdown: individual vs group
+- [x] Statistics cards: total clients, sessions/week, missed rate
+- [x] Period selector (date range picker)
 
 ### Acceptance Criteria
 - ✅ Trainer sees income for selected period
