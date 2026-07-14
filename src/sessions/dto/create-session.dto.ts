@@ -24,7 +24,7 @@ export class CreateSessionDto {
   @IsNumber()
   @Min(0)
   @IsOptional()
-  pricePerPerson?: number;
+  price?: number;
 
   @ApiProperty({ enum: SessionStatus, required: false })
   @IsEnum(SessionStatus)

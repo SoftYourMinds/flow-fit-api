@@ -38,7 +38,7 @@ export class ReportsService {
       }
 
       if (session.status === SessionStatus.COMPLETED) {
-        const sessionIncome = session.pricePerPerson * session.participants.length;
+        const sessionIncome = session.price;
         totalIncome += sessionIncome;
         
         if (session.type === 'INDIVIDUAL') {

@@ -137,7 +137,7 @@ model WorkoutSession {
   type           SessionType   @default(INDIVIDUAL)
   startTime      DateTime      @map("start_time")
   endTime        DateTime      @map("end_time")
-  pricePerPerson Float         @default(0) @map("price_per_person")
+  price          Float         @default(0)
   status         SessionStatus @default(UPCOMING)
 
   participants   SessionParticipant[]
@@ -160,7 +160,6 @@ model SessionParticipant {
 
   customName String?  @map("custom_name")
   isAttended Boolean? @map("is_attended")
-  isPaid     Boolean  @default(false) @map("is_paid")
 
   createdAt  DateTime @default(now()) @map("created_at")
 

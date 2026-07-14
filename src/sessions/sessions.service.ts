@@ -17,7 +17,7 @@ export class SessionsService {
         type: dto.type,
         startTime: new Date(dto.startTime),
         endTime: new Date(dto.endTime),
-        pricePerPerson: dto.pricePerPerson,
+        price: dto.price,
         status: dto.status,
       },
       include: {
@@ -60,10 +60,7 @@ export class SessionsService {
       orderBy: { startTime: 'asc' },
     });
 
-    return sessions.map((s) => ({
-      ...s,
-      totalPrice: s.pricePerPerson * s.participants.length,
-    }));
+    return sessions;
   }
 
   async findOne(trainerId: number, id: number) {
@@ -79,10 +76,7 @@ export class SessionsService {
       throw new NotFoundException('Workout session not found');
     }
 
-    return {
-      ...session,
-      totalPrice: session.pricePerPerson * session.participants.length,
-    };
+    return session;
   }
 
   async update(trainerId: number, id: number, dto: UpdateSessionDto) {
@@ -161,7 +155,7 @@ export class SessionsService {
           trainerId: session.trainerId,
           locationId: session.locationId,
           type: session.type,
-          pricePerPerson: session.pricePerPerson,
+          price: session.price,
           status: 'UPCOMING',
           startTime: newStartTime,
           endTime: newEndTime,
