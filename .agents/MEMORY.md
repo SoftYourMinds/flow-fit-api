@@ -46,7 +46,7 @@ _(empty — fresh project, no tech debt yet)_
 
 ### Module Map (`src/modules/`)
 
-auth · user · client · client-note · metrics · location · workout-session · participant · scheduler · telegram · shared
+auth · user · client · client-note · metrics · location · workout-session · participant · scheduler · telegram · reports · shared
 
 ---
 
