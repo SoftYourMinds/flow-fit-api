@@ -18,6 +18,7 @@
 - Added `updateNote` method in `ClientsService` (API).
 - Updated `environment.ts` to use devtunnel URL.
 - Class-based `.dark` theme configured in `variables.scss` and `global.scss`.
+- Updated `ClientsService.findOne` to include `session: { include: { location: true } }` so the client profile history has location info.
 
 ## Known Issues
 - None. Build completes successfully.

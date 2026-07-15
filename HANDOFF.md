@@ -11,6 +11,7 @@
 - Configured `api/serverless.ts` to serve as the Serverless function entry point for Vercel, fixing the Express initialization TypeScript errors.
 - Updated `package.json` to include `"postinstall": "prisma generate"` so that the Prisma Client is automatically generated during the Vercel build step.
 - Diagnosed and instructed the user on correctly pasting the database connection string into Vercel's Environment Variables (fixing the `DATABASE_URL` error).
+- Updated `ClientsService.findOne` to include `session: { include: { location: true } }` so the client profile history has location info.
 
 ### ⚠️ Pending / Known Issues
 - Verify that the frontend connects smoothly to the newly deployed Vercel API endpoint.
