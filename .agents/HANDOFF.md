@@ -13,6 +13,8 @@
 - Updated `ClientDetailsComponent` to safely render Quill HTML notes using `[innerHTML]` and to display attached images inline.
 - Fixed a SCSS compilation error in `global.scss` related to Quill imports.
 - Fixed the client bottom sheet component (`client-sheet-modal.component.html`) to render the last note using `.text` (instead of `.content`) and bind it with `[innerHTML]` to match the rich text changes.
+- Updated Cloudflare R2 credentials in both `flow-fit` and `flow-fit-api` `.env` files to fix the SSL handshake error.
+- Implemented `MediaViewerModalComponent` to allow clicking on uploaded videos and photos to view them in a full-screen overlay.
 
 ### ⚠️ Pending / Known Issues
 
