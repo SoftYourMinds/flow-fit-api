@@ -4,7 +4,7 @@ import { loggerConfig } from '../src/logger/logger.config';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import * as express from 'express';
 
-const server = express();
+const server = express.default ? express.default() : (express as any)();
 let cachedServer: any;
 
 async function bootstrap(expressInstance: express.Express) {
