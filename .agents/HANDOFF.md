@@ -12,6 +12,7 @@
 - Refactored `NoteModalComponent` to use Quill editor (for bold/italic formatting) and added attachment support.
 - Updated `ClientDetailsComponent` to safely render Quill HTML notes using `[innerHTML]` and to display attached images inline.
 - Fixed a SCSS compilation error in `global.scss` related to Quill imports.
+- Fixed the client bottom sheet component (`client-sheet-modal.component.html`) to render the last note using `.text` (instead of `.content`) and bind it with `[innerHTML]` to match the rich text changes.
 
 ### ⚠️ Pending / Known Issues
 
