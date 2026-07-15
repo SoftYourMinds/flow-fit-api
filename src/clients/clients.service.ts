@@ -29,7 +29,7 @@ export class ClientsService {
         notes: { orderBy: { createdAt: 'desc' } },
         metrics: { orderBy: { createdAt: 'desc' } },
         participations: {
-          include: { session: true },
+          include: { session: { include: { location: true } } },
           orderBy: { session: { startTime: 'desc' } },
           take: 50,
         }
