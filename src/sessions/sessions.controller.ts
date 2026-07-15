@@ -32,7 +32,7 @@ export class SessionsController {
 
   @Get(':id')
   findOne(@Param('id') id: string, @Req() req: any) {
-    return this.sessionsService.findOne(+id, req.user.id);
+    return this.sessionsService.findOne(req.user.id, +id);
   }
 
   @Put(':id')
