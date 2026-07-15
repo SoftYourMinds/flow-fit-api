@@ -11,8 +11,10 @@ export class ReportsController {
   getSummary(
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
+    @Query('locationId') locationId: string,
     @Req() req: any
   ) {
-    return this.reportsService.getSummary(req.user.id, startDate, endDate);
+    const locId = locationId ? parseInt(locationId, 10) : undefined;
+    return this.reportsService.getSummary(req.user.id, startDate, endDate, locId);
   }
 }
