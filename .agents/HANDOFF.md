@@ -13,9 +13,9 @@
 
 ### ⚠️ Pending / Known Issues
 
-- Need to set up the Telegram Webhook via the browser one time using the bot token.
+- None! Telegram Webhook is active and verified (`{"ok":true,"result":true,"description":"Webhook was set"}`).
 
 ### 🚀 Immediate Next Steps
 
-1. Test the Telegram bot connection flow on production (Vercel).
-2. Set up the `cron-job.org` schedule to ping `/scheduler/trigger?secret=...` every 10 minutes.
+1. Test end-to-end flow in production app by clicking the connection button and starting the bot.
+2. Monitor Vercel logs to confirm Webhook and Web Cron executions.
