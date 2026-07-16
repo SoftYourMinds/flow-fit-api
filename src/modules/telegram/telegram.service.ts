@@ -17,10 +17,16 @@ export class TelegramService {
   async startCommand(@Ctx() ctx: Context) {
     const message = ctx.message as any;
     // Extract token from command, e.g. "/start <token>"
-    const payload = (ctx as any).startPayload || message?.text?.split(' ')[1];
+    const rawPayload = (ctx as any).startPayload || message?.text?.split(' ')[1];
+    const payload = rawPayload?.trim();
     const chatId = ctx.chat?.id.toString();
 
-    if (!chatId) return;
+    this.logger.log(`Received /start command from Chat ID: ${chatId}, Payload: "${payload}"`);
+
+    if (!chatId) {
+      this.logger.warn('No chat ID found in context.');
+      return;
+    }
 
     try {
       // First check if the chat ID is already linked
@@ -30,12 +36,14 @@ export class TelegramService {
 
       // If user is already connected and just types /start without a new token
       if (existingUser && !payload) {
+        this.logger.log(`User ${existingUser.id} is already connected (Chat ID: ${chatId}). Sent success message.`);
         await ctx.reply(`✅ Вітаю, ${existingUser.firstName}! Ваш акаунт вже успішно підключено до FlowFit.`);
         return;
       }
 
       // If there is no payload (no token) and no existing connection
       if (!payload) {
+        this.logger.warn(`No payload provided for Chat ID: ${chatId}. Sent invalid link message.`);
         await ctx.reply('❌ Невірне посилання. Щоб підключити бота, використовуйте спеціальне посилання з налаштувань додатку.');
         return;
       }
@@ -48,10 +56,12 @@ export class TelegramService {
       if (!user) {
         // If token not found, but user is already connected, just remind them
         if (existingUser) {
+          this.logger.warn(`Invalid token "${payload}" used by already connected User ${existingUser.id}.`);
           await ctx.reply(`✅ Вітаю, ${existingUser.firstName}! Ваш акаунт вже підключено (старе посилання було проігноровано).`);
           return;
         }
 
+        this.logger.error(`Token not found or already used: "${payload}" for Chat ID: ${chatId}. User not connected.`);
         await ctx.reply('❌ Токен недійсний або вже використаний. Спробуйте згенерувати новий у додатку.');
         return;
       }
@@ -66,10 +76,10 @@ export class TelegramService {
       });
 
       await ctx.reply(`✅ Вітаю, ${user.firstName}! Бот успішно підключено до вашого акаунту FlowFit. Тепер ви будете отримувати сюди сповіщення та зведення.`);
-      this.logger.log(`Telegram bot linked for user ${user.id} (Chat ID: ${chatId})`);
+      this.logger.log(`Telegram bot linked successfully for user ${user.id} (Chat ID: ${chatId})`);
 
     } catch (error) {
-      this.logger.error('Error in startCommand', error);
+      this.logger.error(`Error in startCommand for Chat ID: ${chatId}, Payload: "${payload}"`, error);
       await ctx.reply('❌ Сталася помилка під час підключення. Спробуйте пізніше.');
     }
   }
