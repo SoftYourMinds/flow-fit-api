@@ -106,4 +106,22 @@ export class ClientsService {
     }
     return metric;
   }
+
+  async updateMetric(clientId: number, metricId: number, trainerId: number, data: Partial<Omit<Prisma.MetricsHistoryUpdateInput, 'client'>>): Promise<MetricsHistory> {
+    await this.findOne(clientId, trainerId);
+    const metric = await this.prisma.metricsHistory.findFirst({
+      where: { id: metricId, clientId }
+    });
+    if (!metric) throw new NotFoundException(`Metric #${metricId} not found`);
+
+    const updatedMetric = await this.prisma.metricsHistory.update({
+      where: { id: metricId },
+      data
+    });
+
+    if (data.weight) {
+      await this.prisma.client.update({ where: { id: clientId }, data: { currentWeight: data.weight as number } });
+    }
+    return updatedMetric;
+  }
 }

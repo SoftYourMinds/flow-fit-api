@@ -47,4 +47,9 @@ export class ClientsController {
   addMetric(@Param('id') id: string, @Body() body: any, @Req() req: any) {
     return this.clientsService.addMetric(+id, req.user.id, body);
   }
+
+  @Put(':id/metrics/:metricId')
+  updateMetric(@Param('id') id: string, @Param('metricId') metricId: string, @Body() body: any, @Req() req: any) {
+    return this.clientsService.updateMetric(+id, +metricId, req.user.id, body);
+  }
 }

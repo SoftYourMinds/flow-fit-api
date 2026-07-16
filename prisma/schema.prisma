@@ -99,10 +99,23 @@ model MetricsHistory {
   clientId     Int      @map("client_id")
   client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
+  date         DateTime @default(now())
+
   weight            Float?
   bodyFatPercentage Float?   @map("body_fat_percentage")
-  measurements      String?
+  measurements      String?  // Deprecated, use detailed measurements below
+  chest             Float?
+  waist             Float?
+  belly             Float?
+  buttocksTop       Float?   @map("buttocks_top")
+  buttocksBottom    Float?   @map("buttocks_bottom")
+  legLeft           Float?   @map("leg_left")
+  legRight          Float?   @map("leg_right")
+  armLeft           Float?   @map("arm_left")
+  armRight          Float?   @map("arm_right")
+
   note              String?
+  photos            String[] @default([])
 
   createdAt    DateTime @default(now()) @map("created_at")
 
