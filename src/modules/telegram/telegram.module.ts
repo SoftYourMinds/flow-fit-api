@@ -11,6 +11,7 @@ import * as process from 'process';
     TelegrafModule.forRootAsync({
       useFactory: () => ({
         token: process.env.TELEGRAM_BOT_TOKEN || 'dummy_token',
+        launchOptions: process.env.NODE_ENV === 'production' ? false : undefined,
       }),
     }),
   ],
