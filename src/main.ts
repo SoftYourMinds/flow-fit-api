@@ -11,7 +11,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, new ExpressAdapter(server), {
     logger: loggerConfig,
   });
-  app.enableCors();
+  app.enableCors({
+    origin: true, // Allow any origin to pass
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+  });
   await app.init();
   return app;
 }
