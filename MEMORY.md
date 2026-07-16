@@ -9,6 +9,9 @@
 - API is configured for serverless deployment on Vercel (`api/serverless.ts`), with file logging disabled in production environments.
 
 ## Recent Changes
+- Integrated Telegram Bot for Trainers via `nestjs-telegraf`, allowing users to link their FlowFit account and receive notifications.
+- Fixed Telegram Bot webhook/polling `/start` connection logic to handle double-requests and already-connected users gracefully.
+- Resolved Node deprecation warnings (`DEP0169`) by migrating `url.parse()` usage to the modern WHATWG `URL` API.
 - Implemented `SchedulerModule` and `SchedulerService` using `@nestjs/schedule` to run background minute-by-minute status updates for `WorkoutSession` (`UPCOMING` -> `ACTIVE` -> `COMPLETED`).
 - Documented the architectural decision in `DECISIONS.md` to stick with `@nestjs/schedule` over BullMQ/Redis for MVP.
 - Configured NestJS backend for Vercel Serverless Functions (`api/serverless.ts`).

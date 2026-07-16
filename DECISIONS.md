@@ -2,6 +2,10 @@
 
 This document tracks important architectural, design, and business logic decisions made during the development of the FlowFit backend API.
 
+## 2026-07-16: Telegram Bot Deep-Linking & Webhook Resilience
+- **Decision:** Bot connection logic in `TelegramService.startCommand` handles both `ctx.startPayload` and text splitting, and proactively checks for existing `tgChatId` links before validating deep-link tokens.
+- **Rationale:** Webhooks and polling often process the `/start` command twice due to latency or network retries. By checking if the user is already connected first, we prevent false-positive "Invalid Token" errors and improve UX for users clicking the bot link multiple times.
+
 ## 2026-07-16: Background Scheduler vs BullMQ
 - **Decision:** Implemented background tasks (session status updates) using `@nestjs/schedule` rather than introducing Redis and BullMQ.
 - **Rationale:** For the MVP, the tasks are extremely lightweight (atomic database `updateMany` queries) and do not block the event loop. Avoiding Redis keeps local development simple and reduces production infrastructure costs. Since PostgreSQL handles the atomicity of the `updateMany` query, it is perfectly safe to run this cron job even if we horizontally scale the backend in the future.
