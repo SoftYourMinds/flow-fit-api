@@ -34,59 +34,59 @@ enum SessionStatus {
 }
 
 model User {
-  id           Int       @id @default(autoincrement())
-  email        String    @unique
-  passwordHash String    @map("password_hash")
-  firstName    String    @map("first_name")
-  lastName     String    @map("last_name")
-  role         UserRole  @default(TRAINER)
-  tgChatId     String?   @map("tg_chat_id")
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  firstName    String   @map("first_name")
+  lastName     String   @map("last_name")
+  role         UserRole @default(TRAINER)
+  tgChatId     String?  @map("tg_chat_id")
 
   hashedRefreshToken String? @map("hashed_refresh_token")
   tgLinkToken        String? @unique @map("tg_link_token")
 
-  clients      Client[]
-  locations    Location[]
-  sessions     WorkoutSession[]
+  clients   Client[]
+  locations Location[]
+  sessions  WorkoutSession[]
 
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("users")
 }
 
 model Client {
-  id              Int       @id @default(autoincrement())
-  trainerId       Int       @map("trainer_id")
-  trainer         User      @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  id        Int  @id @default(autoincrement())
+  trainerId Int  @map("trainer_id")
+  trainer   User @relation(fields: [trainerId], references: [id], onDelete: Cascade)
 
-  fullName        String    @map("full_name")
+  fullName        String  @map("full_name")
   phone           String?
   goal            String?
-  personalInfo    String?   @map("personal_info")
-  currentWeight   Float?    @map("current_weight")
+  personalInfo    String? @map("personal_info")
+  currentWeight   Float?  @map("current_weight")
   comments        String?
-  gDriveFolderUrl String?   @map("g_drive_folder_url")
-  isActive        Boolean   @default(true) @map("is_active")
+  gDriveFolderUrl String? @map("g_drive_folder_url")
+  isActive        Boolean @default(true) @map("is_active")
 
   notes          ClientNote[]
   metrics        MetricsHistory[]
   participations SessionParticipant[]
 
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([trainerId])
   @@map("clients")
 }
 
 model ClientNote {
-  id        Int      @id @default(autoincrement())
-  clientId  Int      @map("client_id")
-  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id       Int    @id @default(autoincrement())
+  clientId Int    @map("client_id")
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
-  text      String
-  links     String[] @default([])
+  text  String
+  links String[] @default([])
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -95,68 +95,68 @@ model ClientNote {
 }
 
 model MetricsHistory {
-  id           Int      @id @default(autoincrement())
-  clientId     Int      @map("client_id")
-  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id       Int    @id @default(autoincrement())
+  clientId Int    @map("client_id")
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
-  date         DateTime @default(now())
+  date DateTime @default(now())
 
   weight            Float?
-  bodyFatPercentage Float?   @map("body_fat_percentage")
-  measurements      String?  // Deprecated, use detailed measurements below
+  bodyFatPercentage Float?  @map("body_fat_percentage")
+  measurements      String? // Deprecated, use detailed measurements below
   chest             Float?
   waist             Float?
   belly             Float?
-  buttocksTop       Float?   @map("buttocks_top")
-  buttocksBottom    Float?   @map("buttocks_bottom")
-  legLeft           Float?   @map("leg_left")
-  legRight          Float?   @map("leg_right")
-  armLeft           Float?   @map("arm_left")
-  armRight          Float?   @map("arm_right")
+  buttocksTop       Float?  @map("buttocks_top")
+  buttocksBottom    Float?  @map("buttocks_bottom")
+  legLeft           Float?  @map("leg_left")
+  legRight          Float?  @map("leg_right")
+  armLeft           Float?  @map("arm_left")
+  armRight          Float?  @map("arm_right")
 
-  note              String?
-  photos            String[] @default([])
+  note   String?
+  photos String[] @default([])
 
-  createdAt    DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([clientId])
   @@map("metrics_history")
 }
 
 model Location {
-  id        Int          @id @default(autoincrement())
-  trainerId Int          @map("trainer_id")
-  trainer   User         @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  id        Int  @id @default(autoincrement())
+  trainerId Int  @map("trainer_id")
+  trainer   User @relation(fields: [trainerId], references: [id], onDelete: Cascade)
 
-  name      String
-  type      LocationType @default(STUDIO)
-  address   String?
+  name    String
+  type    LocationType @default(STUDIO)
+  address String?
 
-  sessions  WorkoutSession[]
+  sessions WorkoutSession[]
 
-  createdAt DateTime     @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([trainerId])
   @@map("locations")
 }
 
 model WorkoutSession {
-  id             Int           @id @default(autoincrement())
-  trainerId      Int           @map("trainer_id")
-  trainer        User          @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-  locationId     Int           @map("location_id")
-  location       Location      @relation(fields: [locationId], references: [id])
+  id         Int      @id @default(autoincrement())
+  trainerId  Int      @map("trainer_id")
+  trainer    User     @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  locationId Int      @map("location_id")
+  location   Location @relation(fields: [locationId], references: [id])
 
-  type           SessionType   @default(INDIVIDUAL)
-  startTime      DateTime      @map("start_time")
-  endTime        DateTime      @map("end_time")
-  price          Float         @default(0)
-  status         SessionStatus @default(UPCOMING)
+  type      SessionType   @default(INDIVIDUAL)
+  startTime DateTime      @map("start_time")
+  endTime   DateTime      @map("end_time")
+  price     Float         @default(0)
+  status    SessionStatus @default(UPCOMING)
 
-  participants   SessionParticipant[]
+  participants SessionParticipant[]
 
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([trainerId])
   @@index([trainerId, startTime])
@@ -165,16 +165,16 @@ model WorkoutSession {
 }
 
 model SessionParticipant {
-  id         Int      @id @default(autoincrement())
-  sessionId  Int      @map("session_id")
-  session    WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  clientId   Int?     @map("client_id")
-  client     Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  id        Int            @id @default(autoincrement())
+  sessionId Int            @map("session_id")
+  session   WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  clientId  Int?           @map("client_id")
+  client    Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   customName String?  @map("custom_name")
   isAttended Boolean? @map("is_attended")
 
-  createdAt  DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([sessionId])
   @@index([clientId])
