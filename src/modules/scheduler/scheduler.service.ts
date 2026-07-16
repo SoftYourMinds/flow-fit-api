@@ -8,7 +8,7 @@ export class SchedulerService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_10_MINUTES)
   async handleSessionStatusUpdates() {
     const now = new Date();
 
