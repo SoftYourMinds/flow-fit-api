@@ -2,16 +2,17 @@
 
 ## Last Session Summary
 
-**Date:** 2026-07-15
-**Session focus:** Statistics Location Filtering
+**Date:** 2026-07-16
+**Session focus:** Background Session Status Scheduler
 
 ### ✅ Accomplished
-- Updated `reports.controller.ts` and `reports.service.ts` to accept an optional `locationId` query parameter.
-- Modified the Prisma query in `ReportsService.getSummary` to filter sessions by `locationId` when provided.
-- Successfully built the API to ensure no compilation errors.
+- Created `SchedulerModule` and `SchedulerService` using `@nestjs/schedule`.
+- Implemented `@Cron(CronExpression.EVERY_MINUTE)` task to update `WorkoutSession` status (`UPCOMING` -> `ACTIVE` when start time passes, and `ACTIVE` -> `COMPLETED` when end time passes).
+- Documented architectural reasoning for avoiding Redis/BullMQ in MVP in `DECISIONS.md`.
+- Built API using `npm run build` to verify no compilation errors.
 
 ### ⚠️ Pending / Known Issues
-- Verify that the frontend connects smoothly to the newly deployed Vercel API endpoint.
+- None.
 
 ### 🚀 Immediate Next Steps
 1. Test Vercel API endpoints from the Client app.

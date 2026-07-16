@@ -9,6 +9,8 @@
 - API is configured for serverless deployment on Vercel (`api/serverless.ts`), with file logging disabled in production environments.
 
 ## Recent Changes
+- Implemented `SchedulerModule` and `SchedulerService` using `@nestjs/schedule` to run background minute-by-minute status updates for `WorkoutSession` (`UPCOMING` -> `ACTIVE` -> `COMPLETED`).
+- Documented the architectural decision in `DECISIONS.md` to stick with `@nestjs/schedule` over BullMQ/Redis for MVP.
 - Configured NestJS backend for Vercel Serverless Functions (`api/serverless.ts`).
 - Updated `logger.config.ts` to disable file logging in production to prevent `EROFS` errors on Vercel's read-only file system.
 - Added `prisma generate` to `postinstall` script in `package.json` to ensure Prisma Client is generated during Vercel builds.
