@@ -106,11 +106,6 @@ export class SessionsService {
         updatedSession.trainer.tgChatId,
         `💪 <b>Супер!</b> Ще одне тренування завершено! Ти тиснеш на максимум!`
       );
-    } else if (dto.status === 'MISSED' && updatedSession.trainer?.tgChatId) {
-      await this.telegramService.sendMessage(
-        updatedSession.trainer.tgChatId,
-        `❌ Тренування о ${updatedSession.startTime.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })} скасовано.`
-      );
     }
 
     return updatedSession;
