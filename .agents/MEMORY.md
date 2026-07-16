@@ -73,8 +73,10 @@ Type-safe database access with auto-generated client. Migrations via `prisma mig
 
 ### Computed Fields (Not Stored)
 
-- **Session total price:** `pricePerPerson × participants.length` — computed at query time, not stored
-- **Session status transitions:** UPCOMING → ACTIVE → REQUIRED_ACTION are automatic (cron), COMPLETED/MISSED are manual (trainer action)
+### Session Statuses & Serverless Cron
+
+- **Computed vs Stored:** Session total price is computed at query time. Status transitions (UPCOMING → ACTIVE → COMPLETED) are automated.
+- **Serverless Cron (Vercel):** Because `@Cron` decorators don't work reliably on Vercel Serverless (functions sleep), we use an HTTP Web Cron pattern. A protected endpoint (`GET /scheduler/trigger?secret=...`) is pinged every 10 minutes by an external service (e.g., cron-job.org). This keeps the server warm and executes background logic (status updates, Telegram digests).
 
 ---
 

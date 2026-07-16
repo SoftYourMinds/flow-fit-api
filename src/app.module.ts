@@ -11,6 +11,7 @@ import { SessionsModule } from './sessions/sessions.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { StorageModule } from './storage/storage.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
+import { TelegramModule } from './modules/telegram/telegram.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { SchedulerModule } from './modules/scheduler/scheduler.module';
     ReportsModule,
     StorageModule,
     SchedulerModule,
+    TelegramModule,
   ],
   controllers: [AppController],
   providers: [AppService],

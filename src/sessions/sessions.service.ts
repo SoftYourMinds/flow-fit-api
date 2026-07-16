@@ -4,10 +4,14 @@ import { UpdateSessionDto } from './dto/update-session.dto';
 import { SessionQueryDto } from './dto/session-query.dto';
 import { AddParticipantDto } from './dto/add-participant.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { TelegramService } from '../modules/telegram/telegram.service';
 
 @Injectable()
 export class SessionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly telegramService: TelegramService
+  ) {}
 
   async create(trainerId: number, dto: CreateSessionDto) {
     return this.prisma.workoutSession.create({
@@ -86,14 +90,30 @@ export class SessionsService {
     if (dto.startTime) data.startTime = new Date(dto.startTime);
     if (dto.endTime) data.endTime = new Date(dto.endTime);
 
-    return this.prisma.workoutSession.update({
+    const updatedSession = await this.prisma.workoutSession.update({
       where: { id },
       data,
       include: {
         location: true,
         participants: { include: { client: true } },
+        trainer: true,
       },
     });
+
+    // Telegram Notification logic
+    if (dto.status === 'COMPLETED' && updatedSession.trainer?.tgChatId) {
+      await this.telegramService.sendMessage(
+        updatedSession.trainer.tgChatId,
+        `💪 <b>Супер!</b> Ще одне тренування завершено! Ти тиснеш на максимум!`
+      );
+    } else if (dto.status === 'MISSED' && updatedSession.trainer?.tgChatId) {
+      await this.telegramService.sendMessage(
+        updatedSession.trainer.tgChatId,
+        `❌ Тренування о ${updatedSession.startTime.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })} скасовано.`
+      );
+    }
+
+    return updatedSession;
   }
 
   async remove(trainerId: number, id: number) {
