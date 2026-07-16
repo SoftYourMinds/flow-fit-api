@@ -1,5 +1,5 @@
 import { Controller, Get, UseGuards, Req } from '@nestjs/common';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import * as crypto from 'crypto';
@@ -10,7 +10,7 @@ export class TelegramController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get('link-token')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Generate a unique token to link Telegram bot' })
   async getLinkToken(@Req() req: any) {
