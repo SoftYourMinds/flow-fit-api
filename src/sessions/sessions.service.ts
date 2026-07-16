@@ -23,6 +23,7 @@ export class SessionsService {
         endTime: new Date(dto.endTime),
         price: dto.price,
         status: dto.status,
+        isPaid: dto.status === 'COMPLETED' ? true : (dto.isPaid || false),
       },
       include: {
         location: true,
@@ -89,6 +90,13 @@ export class SessionsService {
     const data: any = { ...dto };
     if (dto.startTime) data.startTime = new Date(dto.startTime);
     if (dto.endTime) data.endTime = new Date(dto.endTime);
+
+    // Auto mark as paid if completed
+    if (dto.status === 'COMPLETED') {
+      data.isPaid = true;
+    } else if (dto.isPaid !== undefined) {
+      data.isPaid = dto.isPaid;
+    }
 
     const updatedSession = await this.prisma.workoutSession.update({
       where: { id },

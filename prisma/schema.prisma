@@ -152,6 +152,7 @@ model WorkoutSession {
   endTime   DateTime      @map("end_time")
   price     Float         @default(0)
   status    SessionStatus @default(UPCOMING)
+  isPaid    Boolean       @default(false) @map("is_paid")
 
   participants SessionParticipant[]
 

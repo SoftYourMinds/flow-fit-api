@@ -9,6 +9,7 @@ export class ReportsService {
   async getSummary(trainerId: number, startDate: string, endDate: string, locationId?: number) {
     const start = new Date(startDate);
     const end = new Date(endDate);
+    end.setUTCHours(23, 59, 59, 999);
 
     const whereClause: any = {
       trainerId,
@@ -34,36 +35,51 @@ export class ReportsService {
     let groupIncome = 0;
     
     let totalSessionsCount = sessions.length;
+    let individualSessionsCount = 0;
+    let groupSessionsCount = 0;
+    
     let missedSessionsCount = 0;
+    let individualMissedCount = 0;
+    let groupMissedCount = 0;
     
     const clientIds = new Set<number>();
+    const individualClientIds = new Set<number>();
+    const groupClientIds = new Set<number>();
 
     for (const session of sessions) {
+      const isIndividual = session.type === 'INDIVIDUAL';
+      const isGroup = session.type === 'GROUP';
+
+      if (isIndividual) individualSessionsCount++;
+      if (isGroup) groupSessionsCount++;
+
       if (session.status === SessionStatus.MISSED) {
         missedSessionsCount++;
+        if (isIndividual) individualMissedCount++;
+        if (isGroup) groupMissedCount++;
       }
 
-      if (session.status === SessionStatus.COMPLETED) {
-        const sessionIncome = session.price;
+      for (const p of session.participants) {
+        if (p.clientId) {
+          clientIds.add(p.clientId);
+          if (isIndividual) individualClientIds.add(p.clientId);
+          if (isGroup) groupClientIds.add(p.clientId);
+        }
+      }
+
+      if (session.status === SessionStatus.COMPLETED || session.isPaid) {
+        const sessionIncome = session.price || 0;
         totalIncome += sessionIncome;
         
-        if (session.type === 'INDIVIDUAL') {
+        if (isIndividual) {
           individualIncome += sessionIncome;
-        } else if (session.type === 'GROUP') {
+        } else if (isGroup) {
           groupIncome += sessionIncome;
-        }
-
-        for (const p of session.participants) {
-          if (p.clientId) {
-            clientIds.add(p.clientId);
-          }
         }
       }
     }
 
-    const missedRate = totalSessionsCount > 0 
-      ? Math.round((missedSessionsCount / totalSessionsCount) * 100) 
-      : 0;
+    const calculateRate = (missed: number, total: number) => total > 0 ? Math.round((missed / total) * 100) : 0;
 
     return {
       totalIncome,
@@ -72,9 +88,21 @@ export class ReportsService {
         group: groupIncome,
       },
       statistics: {
-        totalClients: clientIds.size,
-        totalSessions: totalSessionsCount,
-        missedRate,
+        all: {
+          totalClients: clientIds.size,
+          totalSessions: totalSessionsCount,
+          missedRate: calculateRate(missedSessionsCount, totalSessionsCount),
+        },
+        individual: {
+          totalClients: individualClientIds.size,
+          totalSessions: individualSessionsCount,
+          missedRate: calculateRate(individualMissedCount, individualSessionsCount),
+        },
+        group: {
+          totalClients: groupClientIds.size,
+          totalSessions: groupSessionsCount,
+          missedRate: calculateRate(groupMissedCount, groupSessionsCount),
+        }
       }
     };
   }

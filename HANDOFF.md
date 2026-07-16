@@ -10,6 +10,9 @@
 - Resolved Node deprecation warnings by updating URL parsing logic.
 - Investigated CORS issues locally.
 - Created `SchedulerModule` and `SchedulerService` using `@nestjs/schedule` to update `WorkoutSession` status.
+- Fixed reports API date filtering bug to correctly include sessions up to the end of the selected day.
+- Refactored `reports.service.ts` to output segmented statistics (`all`, `individual`, `group`).
+- Added `isPaid` field to `WorkoutSession` to track payments for missed sessions accurately, updating income generation logic.
 
 ### ⚠️ Pending / Known Issues
 - None.

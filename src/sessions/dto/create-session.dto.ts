@@ -30,4 +30,8 @@ export class CreateSessionDto {
   @IsEnum(SessionStatus)
   @IsOptional()
   status?: SessionStatus;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  isPaid?: boolean;
 }
