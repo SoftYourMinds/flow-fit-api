@@ -16,14 +16,15 @@ export class PortalService {
           }
         },
         metrics: {
-          orderBy: { date: 'desc' },
-          take: 1, // Get the latest metrics
+          orderBy: { date: 'asc' }, // Get all metrics for chart, ascending order
         },
         participations: {
           where: {
-            session: {
-              startTime: { gte: new Date() } // Upcoming sessions
-            }
+            // Include both past and future for the calendar, maybe restrict to attended or upcoming
+            OR: [
+              { isAttended: true },
+              { session: { startTime: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } } } // At least from last 30 days
+            ]
           },
           include: {
             session: {
@@ -37,7 +38,6 @@ export class PortalService {
               startTime: 'asc'
             }
           },
-          take: 5 // Next 5 upcoming sessions
         }
       }
     });
@@ -52,24 +52,26 @@ export class PortalService {
       goal: client.goal,
       currentWeight: client.currentWeight,
       trainerName: `${client.trainer.firstName} ${client.trainer.lastName}`,
-      latestMetrics: client.metrics.length > 0 ? {
-        weight: client.metrics[0].weight,
-        bodyFatPercentage: client.metrics[0].bodyFatPercentage,
-        chest: client.metrics[0].chest,
-        waist: client.metrics[0].waist,
-        belly: client.metrics[0].belly,
-        legLeft: client.metrics[0].legLeft,
-        legRight: client.metrics[0].legRight,
-        armLeft: client.metrics[0].armLeft,
-        armRight: client.metrics[0].armRight,
-        date: client.metrics[0].date
-      } : null,
-      upcomingSessions: client.participations.map(p => ({
+      metrics: client.metrics.map(m => ({
+        weight: m.weight,
+        bodyFatPercentage: m.bodyFatPercentage,
+        chest: m.chest,
+        waist: m.waist,
+        belly: m.belly,
+        legLeft: m.legLeft,
+        legRight: m.legRight,
+        armLeft: m.armLeft,
+        armRight: m.armRight,
+        date: m.date
+      })),
+      sessions: client.participations.map(p => ({
         id: p.session.id,
         startTime: p.session.startTime,
         endTime: p.session.endTime,
         locationName: p.session.location.name,
         type: p.session.type,
+        isAttended: p.isAttended,
+        status: p.session.status
       }))
     };
   }
