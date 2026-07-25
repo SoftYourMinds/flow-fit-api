@@ -12,6 +12,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { StorageModule } from './storage/storage.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
+import { PortalModule } from './portal/portal.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { TelegramModule } from './modules/telegram/telegram.module';
     StorageModule,
     SchedulerModule,
     TelegramModule,
+    PortalModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -68,6 +68,7 @@ model Client {
   comments        String?
   gDriveFolderUrl String? @map("g_drive_folder_url")
   isActive        Boolean @default(true) @map("is_active")
+  shareToken      String? @unique @default(uuid()) @map("share_token")
 
   notes          ClientNote[]
   metrics        MetricsHistory[]

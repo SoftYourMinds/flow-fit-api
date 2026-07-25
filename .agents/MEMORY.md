@@ -123,3 +123,5 @@ Types: feat · fix · chore · refactor · docs · style
 - `async/await` only — no `.then()` chains
 - Thin controllers — all logic in services
 - Every input validated with DTO + `class-validator`
+
+- **2026-07-25**: Disabled sign-up route until admin management system is built.
