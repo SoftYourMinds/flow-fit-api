@@ -1,4 +1,4 @@
-import { IsDateString, IsEnum, IsInt, IsNumber, IsOptional, Min } from 'class-validator';
+import { IsArray, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { SessionType, SessionStatus } from '@prisma/client';
 
@@ -34,4 +34,10 @@ export class CreateSessionDto {
   @ApiProperty({ required: false })
   @IsOptional()
   isPaid?: boolean;
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  workoutTypes?: string[];
 }

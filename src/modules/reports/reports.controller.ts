@@ -12,9 +12,17 @@ export class ReportsController {
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
     @Query('locationId') locationId: string,
+    @Query('workoutTypes') workoutTypes: string | string[],
     @Req() req: any
   ) {
     const locId = locationId ? parseInt(locationId, 10) : undefined;
-    return this.reportsService.getSummary(req.user.id, startDate, endDate, locId);
+    
+    // Normalize workoutTypes to an array of strings if provided
+    let typesArray: string[] | undefined;
+    if (workoutTypes) {
+      typesArray = Array.isArray(workoutTypes) ? workoutTypes : [workoutTypes];
+    }
+    
+    return this.reportsService.getSummary(req.user.id, startDate, endDate, locId, typesArray);
   }
 }

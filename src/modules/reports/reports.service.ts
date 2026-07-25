@@ -6,7 +6,7 @@ import { SessionStatus } from '@prisma/client';
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getSummary(trainerId: number, startDate: string, endDate: string, locationId?: number) {
+  async getSummary(trainerId: number, startDate: string, endDate: string, locationId?: number, workoutTypes?: string[]) {
     const start = new Date(startDate);
     const end = new Date(endDate);
     end.setUTCHours(23, 59, 59, 999);
@@ -21,6 +21,12 @@ export class ReportsService {
 
     if (locationId) {
       whereClause.locationId = locationId;
+    }
+    
+    if (workoutTypes && workoutTypes.length > 0) {
+      whereClause.workoutTypes = {
+        hasSome: workoutTypes
+      };
     }
 
     const sessions = await this.prisma.workoutSession.findMany({

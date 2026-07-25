@@ -9,6 +9,8 @@
 - API is configured for serverless deployment on Vercel (`api/serverless.ts`), with file logging disabled in production environments.
 
 ## Recent Changes
+- Added `workoutTypes` string array field to `WorkoutSession` via Prisma migration to support filtering and categorizing workouts (e.g. stretching, yoga).
+- Updated `reports.controller.ts` and `reports.service.ts` to support filtering session statistics by `workoutTypes`.
 - Integrated Telegram Bot for Trainers via `nestjs-telegraf`, allowing users to link their FlowFit account and receive notifications.
 - Fixed Telegram Bot webhook/polling `/start` connection logic to handle double-requests and already-connected users gracefully.
 - Resolved Node deprecation warnings (`DEP0169`) by migrating `url.parse()` usage to the modern WHATWG `URL` API.
