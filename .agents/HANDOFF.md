@@ -1,21 +1,18 @@
 ## Last Session Summary
 
-**Date:** 2026-07-16
-**Session focus:** Telegram Bot Integration & Serverless Webhooks
+**Date:** 2026-07-25
+**Session focus:** Telegram Bot Timezone Fix
 
 ### ✅ Accomplished
 
-- Created Telegram module (`TelegramService`, `TelegramController`) for linking users.
-- Set up automated bot notifications for Session status changes and daily digests.
-- Integrated Web Cron (`GET /scheduler/trigger`) via cron-job.org to prevent server sleeping and execute scheduled jobs on Vercel.
-- Transitioned Telegram from `Polling` to `Webhooks` for the Vercel production environment to prevent `409 Conflict` errors and properly handle serverless architecture.
-- Frontend: Connected "Підключити Telegram-бота" button to automatically open the user's specific Telegram bot with a linking token.
+- Fixed an issue where the Telegram daily digest used the server's UTC time. Explicitly added `timeZone: 'Europe/Kyiv'` to `toLocaleTimeString` in `scheduler.service.ts`.
+- Prettier auto-formatting applied to `scheduler.service.ts` during the save.
 
 ### ⚠️ Pending / Known Issues
 
-- None! Telegram Webhook is active and verified (`{"ok":true,"result":true,"description":"Webhook was set"}`).
+- The Prisma `DATABASE_URL` is missing from the local `.env` file, which prevents running `npm install` fully (due to the `postinstall` hook running migrations). This doesn't affect production deployment.
 
 ### 🚀 Immediate Next Steps
 
-1. Test end-to-end flow in production app by clicking the connection button and starting the bot.
-2. Monitor Vercel logs to confirm Webhook and Web Cron executions.
+1. Commit the changes and push to `main` for Vercel deployment.
+2. (Optional) Set up local `.env` with a database URL if further local testing is needed.
