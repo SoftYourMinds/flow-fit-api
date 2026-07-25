@@ -10,6 +10,7 @@
 - Applied Prisma migration (`add_workout_types`).
 - Updated `create-session.dto.ts` and `update-session.dto.ts` to accept `workoutTypes`.
 - Modified `reports.controller.ts` and `reports.service.ts` to filter sessions by `workoutTypes`.
+- [Hotfix] Fixed `sessions.service.ts` to actively save `workoutTypes` when creating or duplicating sessions.
 
 ### ⚠️ Pending / Known Issues
 - None.

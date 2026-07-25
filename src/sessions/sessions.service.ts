@@ -24,6 +24,7 @@ export class SessionsService {
         price: dto.price,
         status: dto.status,
         isPaid: dto.status === 'COMPLETED' ? true : (dto.isPaid || false),
+        workoutTypes: dto.workoutTypes || [],
       },
       include: {
         location: true,
@@ -180,6 +181,7 @@ export class SessionsService {
           type: session.type,
           price: session.price,
           status: 'UPCOMING',
+          workoutTypes: session.workoutTypes || [],
           startTime: newStartTime,
           endTime: newEndTime,
           participants: {
