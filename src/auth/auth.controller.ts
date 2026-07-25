@@ -6,10 +6,11 @@ import { AuthGuard } from '@nestjs/passport';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  @Post('register')
-  async register(@Body() body: any) {
-    return this.authService.register(body);
-  }
+  // @Post('register')
+  // async register(@Body() body: any) {
+  //   // requires admin managment system in future
+  //   return this.authService.register(body);
+  // }
 
   @Post('login')
   async login(@Body() body: any) {
