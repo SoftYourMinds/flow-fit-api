@@ -47,13 +47,13 @@ export class SessionsService {
       where.startTime = { lte: new Date(query.end) };
     }
 
-    if (query.locationId) where.locationId = query.locationId;
+    if (query.locationId) where.locationId = Number(query.locationId);
     if (query.type) where.type = query.type;
     if (query.status) where.status = query.status;
     
     if (query.clientId) {
       where.participants = {
-        some: { clientId: query.clientId },
+        some: { clientId: Number(query.clientId) },
       };
     }
 
