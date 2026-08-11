@@ -102,6 +102,7 @@ model MetricsHistory {
 
   date DateTime @default(now())
 
+  name              String?
   weight            Float?
   bodyFatPercentage Float?  @map("body_fat_percentage")
   measurements      String? // Deprecated, use detailed measurements below
