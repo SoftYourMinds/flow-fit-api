@@ -125,3 +125,4 @@ Types: feat · fix · chore · refactor · docs · style
 - Every input validated with DTO + `class-validator`
 
 - **2026-07-25**: Disabled sign-up route until admin management system is built.
+- **2026-08-22**: Added `maxParticipants` optional field to `WorkoutSession` model, DTOs, and created migration.
