@@ -13,7 +13,7 @@ export class PortalService {
           select: {
             firstName: true,
             lastName: true,
-          }
+          },
         },
         metrics: {
           orderBy: { date: 'asc' }, // Get all metrics for chart, ascending order
@@ -23,23 +23,23 @@ export class PortalService {
             // Include both past and future for the calendar, maybe restrict to attended or upcoming
             OR: [
               { isAttended: true },
-              { session: { startTime: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } } } // At least from last 30 days
-            ]
+              { session: { startTime: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } } }, // At least from last 30 days
+            ],
           },
           include: {
             session: {
               include: {
                 location: true,
-              }
-            }
+              },
+            },
           },
           orderBy: {
             session: {
-              startTime: 'asc'
-            }
+              startTime: 'asc',
+            },
           },
-        }
-      }
+        },
+      },
     });
 
     if (!client || !client.isActive) {
@@ -52,7 +52,7 @@ export class PortalService {
       goal: client.goal,
       currentWeight: client.currentWeight,
       trainerName: `${client.trainer.firstName} ${client.trainer.lastName}`,
-      metrics: client.metrics.map(m => ({
+      metrics: client.metrics.map((m) => ({
         weight: m.weight,
         bodyFatPercentage: m.bodyFatPercentage,
         chest: m.chest,
@@ -62,17 +62,17 @@ export class PortalService {
         legRight: m.legRight,
         armLeft: m.armLeft,
         armRight: m.armRight,
-        date: m.date
+        date: m.date,
       })),
-      sessions: client.participations.map(p => ({
+      sessions: client.participations.map((p) => ({
         id: p.session.id,
         startTime: p.session.startTime,
         endTime: p.session.endTime,
         locationName: p.session.location.name,
         type: p.session.type,
         isAttended: p.isAttended,
-        status: p.session.status
-      }))
+        status: p.session.status,
+      })),
     };
   }
 }

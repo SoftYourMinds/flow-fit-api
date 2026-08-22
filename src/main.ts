@@ -3,12 +3,13 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { loggerConfig } from './logger/logger.config';
 import { ExpressAdapter } from '@nestjs/platform-express';
-import express from 'express';
+import express, { Request, Response } from 'express';
+import { INestApplication } from '@nestjs/common';
 
 const server = express();
-let cachedApp: any;
+let cachedApp: INestApplication | undefined;
 
-async function bootstrap() {
+async function bootstrap(): Promise<INestApplication> {
   const app = await NestFactory.create(AppModule, new ExpressAdapter(server), {
     logger: loggerConfig,
   });
@@ -22,12 +23,12 @@ async function bootstrap() {
 }
 
 if (process.env.NODE_ENV !== 'production') {
-  bootstrap().then((app) => {
-    app.listen(process.env.PORT ?? 3000);
+  void bootstrap().then(async (app) => {
+    await app.listen(process.env.PORT ?? 3000);
   });
 }
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: Request, res: Response): Promise<unknown> {
   if (!cachedApp) {
     cachedApp = await bootstrap();
   }

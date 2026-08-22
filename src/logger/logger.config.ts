@@ -8,8 +8,14 @@ const transports: winston.transport[] = [
       winston.format.timestamp(),
       winston.format.ms(),
       winston.format.colorize(),
-      winston.format.printf(({ timestamp, level, message, context, ms }) => {
-        return `${timestamp} [${level}] ${context ? `[${context}] ` : ''}${message} ${ms}`;
+      winston.format.printf((info) => {
+        const timestamp = typeof info['timestamp'] === 'string' ? info['timestamp'] : '';
+        const level = typeof info.level === 'string' ? info.level : '';
+        const context = typeof info['context'] === 'string' ? `[${info['context']}] ` : '';
+        const message =
+          typeof info.message === 'string' ? info.message : JSON.stringify(info.message);
+        const ms = typeof info['ms'] === 'string' ? info['ms'] : '';
+        return `${timestamp} [${level}] ${context}${message} ${ms}`;
       }),
     ),
   }),
@@ -23,10 +29,7 @@ if (process.env.NODE_ENV !== 'production') {
       zippedArchive: true,
       maxSize: '20m',
       maxFiles: '14d',
-      format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-      ),
+      format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
     }),
     new DailyRotateFile({
       level: 'error',
@@ -35,11 +38,8 @@ if (process.env.NODE_ENV !== 'production') {
       zippedArchive: true,
       maxSize: '20m',
       maxFiles: '14d',
-      format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-      ),
-    })
+      format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
+    }),
   );
 }
 

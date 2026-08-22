@@ -3,13 +3,13 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class AddParticipantDto {
   @ApiPropertyOptional()
-  @ValidateIf((o) => !o.customName)
+  @ValidateIf((o: AddParticipantDto) => !o.customName)
   @IsInt()
   @IsOptional()
   clientId?: number;
 
   @ApiPropertyOptional()
-  @ValidateIf((o) => !o.clientId)
+  @ValidateIf((o: AddParticipantDto) => !o.clientId)
   @IsString()
   @IsOptional()
   customName?: string;

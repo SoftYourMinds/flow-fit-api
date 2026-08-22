@@ -1,19 +1,22 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { UpdateSessionDto } from './dto/update-session.dto';
 import { SessionQueryDto } from './dto/session-query.dto';
 import { AddParticipantDto } from './dto/add-participant.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TelegramService } from '../modules/telegram/telegram.service';
+import { Prisma, SessionParticipant, WorkoutSession } from '@prisma/client';
 
 @Injectable()
 export class SessionsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly telegramService: TelegramService
+    private readonly telegramService: TelegramService,
   ) {}
 
-  async create(trainerId: number, dto: CreateSessionDto) {
+  // ─── Public Methods ─────────────────────────────────────────────
+
+  async create(trainerId: number, dto: CreateSessionDto): Promise<WorkoutSession> {
     return this.prisma.workoutSession.create({
       data: {
         trainerId,
@@ -23,7 +26,7 @@ export class SessionsService {
         endTime: new Date(dto.endTime),
         price: dto.price,
         status: dto.status,
-        isPaid: dto.status === 'COMPLETED' ? true : (dto.isPaid || false),
+        isPaid: dto.status === 'COMPLETED' ? true : dto.isPaid || false,
         workoutTypes: dto.workoutTypes || [],
       },
       include: {
@@ -33,31 +36,10 @@ export class SessionsService {
     });
   }
 
-  async findAll(trainerId: number, query: SessionQueryDto) {
-    const where: any = { trainerId };
+  async findAll(trainerId: number, query: SessionQueryDto): Promise<WorkoutSession[]> {
+    const where = this.buildFindAllWhereClause(trainerId, query);
 
-    if (query.start && query.end) {
-      where.startTime = {
-        gte: new Date(query.start),
-        lte: new Date(query.end),
-      };
-    } else if (query.start) {
-      where.startTime = { gte: new Date(query.start) };
-    } else if (query.end) {
-      where.startTime = { lte: new Date(query.end) };
-    }
-
-    if (query.locationId) where.locationId = Number(query.locationId);
-    if (query.type) where.type = query.type;
-    if (query.status) where.status = query.status;
-    
-    if (query.clientId) {
-      where.participants = {
-        some: { clientId: Number(query.clientId) },
-      };
-    }
-
-    const sessions = await this.prisma.workoutSession.findMany({
+    return this.prisma.workoutSession.findMany({
       where,
       include: {
         location: true,
@@ -65,11 +47,9 @@ export class SessionsService {
       },
       orderBy: { startTime: 'asc' },
     });
-
-    return sessions;
   }
 
-  async findOne(trainerId: number, id: number) {
+  async findOne(trainerId: number, id: number): Promise<WorkoutSession> {
     const session = await this.prisma.workoutSession.findUnique({
       where: { id },
       include: {
@@ -85,12 +65,23 @@ export class SessionsService {
     return session;
   }
 
-  async update(trainerId: number, id: number, dto: UpdateSessionDto) {
+  async update(trainerId: number, id: number, dto: UpdateSessionDto): Promise<WorkoutSession> {
     await this.findOne(trainerId, id); // Verify ownership
 
-    const data: any = { ...dto };
-    if (dto.startTime) data.startTime = new Date(dto.startTime);
-    if (dto.endTime) data.endTime = new Date(dto.endTime);
+    const data: Prisma.WorkoutSessionUpdateInput = {
+      location: dto.locationId !== undefined ? { connect: { id: dto.locationId } } : undefined,
+      type: dto.type,
+      price: dto.price,
+      status: dto.status,
+      workoutTypes: dto.workoutTypes,
+    };
+
+    if (dto.startTime) {
+      data.startTime = new Date(dto.startTime);
+    }
+    if (dto.endTime) {
+      data.endTime = new Date(dto.endTime);
+    }
 
     // Auto mark as paid if completed
     if (dto.status === 'COMPLETED') {
@@ -110,17 +101,18 @@ export class SessionsService {
     });
 
     // Telegram Notification logic
-    if (dto.status === 'COMPLETED' && updatedSession.trainer?.tgChatId) {
+    const shouldNotifyTrainer = dto.status === 'COMPLETED' && updatedSession.trainer?.tgChatId;
+    if (shouldNotifyTrainer && updatedSession.trainer?.tgChatId) {
       await this.telegramService.sendMessage(
         updatedSession.trainer.tgChatId,
-        `💪 <b>Супер!</b> Ще одне тренування завершено! Ти тиснеш на максимум!`
+        `💪 <b>Супер!</b> Ще одне тренування завершено! Ти тиснеш на максимум!`,
       );
     }
 
     return updatedSession;
   }
 
-  async remove(trainerId: number, id: number) {
+  async remove(trainerId: number, id: number): Promise<WorkoutSession> {
     await this.findOne(trainerId, id); // Verify ownership
 
     return this.prisma.workoutSession.delete({
@@ -128,7 +120,11 @@ export class SessionsService {
     });
   }
 
-  async addParticipant(trainerId: number, sessionId: number, dto: AddParticipantDto) {
+  async addParticipant(
+    trainerId: number,
+    sessionId: number,
+    dto: AddParticipantDto,
+  ): Promise<SessionParticipant> {
     await this.findOne(trainerId, sessionId); // Verify ownership
 
     return this.prisma.sessionParticipant.create({
@@ -141,7 +137,11 @@ export class SessionsService {
     });
   }
 
-  async removeParticipant(trainerId: number, sessionId: number, participantId: number) {
+  async removeParticipant(
+    trainerId: number,
+    sessionId: number,
+    participantId: number,
+  ): Promise<SessionParticipant> {
     await this.findOne(trainerId, sessionId); // Verify ownership
 
     return this.prisma.sessionParticipant.delete({
@@ -149,7 +149,11 @@ export class SessionsService {
     });
   }
 
-  async duplicateWeek(trainerId: number, sourceStart: string, targetStart: string) {
+  async duplicateWeek(
+    trainerId: number,
+    sourceStart: string,
+    targetStart: string,
+  ): Promise<WorkoutSession[]> {
     const sourceStartDate = new Date(sourceStart);
     const sourceEndDate = new Date(sourceStartDate);
     sourceEndDate.setDate(sourceEndDate.getDate() + 7);
@@ -168,7 +172,7 @@ export class SessionsService {
       include: { participants: true },
     });
 
-    const createdSessions = [];
+    const createdSessions: WorkoutSession[] = [];
 
     for (const session of sessions) {
       const newStartTime = new Date(session.startTime.getTime() + diffMs);
@@ -185,7 +189,7 @@ export class SessionsService {
           startTime: newStartTime,
           endTime: newEndTime,
           participants: {
-            create: session.participants.map(p => ({
+            create: session.participants.map((p) => ({
               clientId: p.clientId,
               customName: p.customName,
             })),
@@ -197,5 +201,43 @@ export class SessionsService {
     }
 
     return createdSessions;
+  }
+
+  // ─── Private Helpers ────────────────────────────────────────────
+
+  private buildFindAllWhereClause(
+    trainerId: number,
+    query: SessionQueryDto,
+  ): Prisma.WorkoutSessionWhereInput {
+    const where: Prisma.WorkoutSessionWhereInput = { trainerId };
+
+    if (query.start && query.end) {
+      where.startTime = {
+        gte: new Date(query.start),
+        lte: new Date(query.end),
+      };
+    } else if (query.start) {
+      where.startTime = { gte: new Date(query.start) };
+    } else if (query.end) {
+      where.startTime = { lte: new Date(query.end) };
+    }
+
+    if (query.locationId) {
+      where.locationId = Number(query.locationId);
+    }
+    if (query.type) {
+      where.type = query.type;
+    }
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    if (query.clientId) {
+      where.participants = {
+        some: { clientId: Number(query.clientId) },
+      };
+    }
+
+    return where;
   }
 }
