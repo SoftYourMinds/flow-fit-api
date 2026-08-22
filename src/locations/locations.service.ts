@@ -4,7 +4,9 @@ import { Prisma, Location } from '@prisma/client';
 
 @Injectable()
 export class LocationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
+
+  // ─── Public Methods ─────────────────────────────────────────────
 
   async findAll(trainerId: number): Promise<Location[]> {
     return this.prisma.location.findMany({
@@ -17,11 +19,16 @@ export class LocationsService {
     const location = await this.prisma.location.findFirst({
       where: { id, trainerId },
     });
-    if (!location) throw new NotFoundException(`Location #${id} not found`);
+    if (!location) {
+      throw new NotFoundException(`Location #${id} not found`);
+    }
     return location;
   }
 
-  async create(trainerId: number, data: Omit<Prisma.LocationCreateInput, 'trainer'>): Promise<Location> {
+  async create(
+    trainerId: number,
+    data: Omit<Prisma.LocationCreateInput, 'trainer'>,
+  ): Promise<Location> {
     return this.prisma.location.create({
       data: {
         ...data,

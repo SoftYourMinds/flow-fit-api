@@ -1,20 +1,23 @@
 import { Controller, Post, Body, Req, UseGuards, Get, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
+import type {
+  AuthenticatedRequest,
+  AuthenticatedUser,
+  AuthTokens,
+} from './interfaces/jwt-payload.interface';
+
+export class LoginDto {
+  email!: string;
+  password!: string;
+}
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
-
-  // @Post('register')
-  // async register(@Body() body: any) {
-  //   // requires admin managment system in future
-  //   return this.authService.register(body);
-  // }
+  constructor(private readonly authService: AuthService) {}
 
   @Post('login')
-  async login(@Body() body: any) {
-    // In a real app we'd use LocalStrategy, but for simplicity we call validate directly here
+  async login(@Body() body: LoginDto): Promise<AuthTokens> {
     const user = await this.authService.validateUser(body.email, body.password);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -24,21 +27,24 @@ export class AuthController {
 
   @UseGuards(AuthGuard('jwt-refresh'))
   @Post('refresh')
-  async refreshTokens(@Req() req: any) {
+  async refreshTokens(@Req() req: AuthenticatedRequest): Promise<AuthTokens> {
     const userId = req.user.id;
     const refreshToken = req.user.refreshToken;
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token is required');
+    }
     return this.authService.refreshTokens(userId, refreshToken);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Post('logout')
-  async logout(@Req() req: any) {
+  async logout(@Req() req: AuthenticatedRequest): Promise<void> {
     return this.authService.logout(req.user.id);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Get('me')
-  async getProfile(@Req() req: any) {
+  getProfile(@Req() req: AuthenticatedRequest): AuthenticatedUser {
     return req.user;
   }
 }

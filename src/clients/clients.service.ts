@@ -4,19 +4,21 @@ import { Prisma, Client, ClientNote, MetricsHistory } from '@prisma/client';
 
 @Injectable()
 export class ClientsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
+
+  // ─── Public Methods ─────────────────────────────────────────────
 
   async findAll(trainerId: number): Promise<Client[]> {
     return this.prisma.client.findMany({
       where: { trainerId, isActive: true },
       include: {
         _count: {
-          select: { notes: true }
+          select: { notes: true },
         },
         metrics: {
           orderBy: { createdAt: 'desc' },
-          take: 1
-        }
+          take: 1,
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -32,14 +34,19 @@ export class ClientsService {
           include: { session: { include: { location: true } } },
           orderBy: { session: { startTime: 'desc' } },
           take: 50,
-        }
-      }
+        },
+      },
     });
-    if (!client) throw new NotFoundException(`Client #${id} not found`);
+    if (!client) {
+      throw new NotFoundException(`Client #${id} not found`);
+    }
     return client;
   }
 
-  async create(trainerId: number, data: Omit<Prisma.ClientCreateInput, 'trainer'>): Promise<Client> {
+  async create(
+    trainerId: number,
+    data: Omit<Prisma.ClientCreateInput, 'trainer'>,
+  ): Promise<Client> {
     return this.prisma.client.create({
       data: {
         ...data,
@@ -64,63 +71,92 @@ export class ClientsService {
     });
   }
 
-  // Sub-resources
-  async addNote(clientId: number, trainerId: number, data: { text: string, links?: string[] }): Promise<ClientNote> {
+  // ─── Sub-resources ──────────────────────────────────────────────
+
+  async addNote(
+    clientId: number,
+    trainerId: number,
+    data: { text: string; links?: string[] },
+  ): Promise<ClientNote> {
     await this.findOne(clientId, trainerId);
     return this.prisma.clientNote.create({
       data: {
         text: data.text,
         links: data.links || [],
         client: { connect: { id: clientId } },
-      }
+      },
     });
   }
 
-  async updateNote(clientId: number, noteId: number, trainerId: number, data: { text: string, links?: string[] }): Promise<ClientNote> {
+  async updateNote(
+    clientId: number,
+    noteId: number,
+    trainerId: number,
+    data: { text: string; links?: string[] },
+  ): Promise<ClientNote> {
     await this.findOne(clientId, trainerId);
     const note = await this.prisma.clientNote.findFirst({
-      where: { id: noteId, clientId }
+      where: { id: noteId, clientId },
     });
-    if (!note) throw new NotFoundException(`Note #${noteId} not found`);
+    if (!note) {
+      throw new NotFoundException(`Note #${noteId} not found`);
+    }
 
     return this.prisma.clientNote.update({
       where: { id: noteId },
       data: {
         text: data.text,
         links: data.links || [],
-      }
+      },
     });
   }
 
-  async addMetric(clientId: number, trainerId: number, data: Omit<Prisma.MetricsHistoryCreateInput, 'client'>): Promise<MetricsHistory> {
-    const client = await this.findOne(clientId, trainerId);
+  async addMetric(
+    clientId: number,
+    trainerId: number,
+    data: Omit<Prisma.MetricsHistoryCreateInput, 'client'>,
+  ): Promise<MetricsHistory> {
+    await this.findOne(clientId, trainerId);
     const metric = await this.prisma.metricsHistory.create({
       data: {
         ...data,
         client: { connect: { id: clientId } },
-      }
+      },
     });
-    // Update current weight on client if provided
+
     if (data.weight) {
-      await this.prisma.client.update({ where: { id: clientId }, data: { currentWeight: data.weight as number } });
+      await this.prisma.client.update({
+        where: { id: clientId },
+        data: { currentWeight: data.weight },
+      });
     }
     return metric;
   }
 
-  async updateMetric(clientId: number, metricId: number, trainerId: number, data: Partial<Omit<Prisma.MetricsHistoryUpdateInput, 'client'>>): Promise<MetricsHistory> {
+  async updateMetric(
+    clientId: number,
+    metricId: number,
+    trainerId: number,
+    data: Partial<Omit<Prisma.MetricsHistoryUpdateInput, 'client'>>,
+  ): Promise<MetricsHistory> {
     await this.findOne(clientId, trainerId);
     const metric = await this.prisma.metricsHistory.findFirst({
-      where: { id: metricId, clientId }
+      where: { id: metricId, clientId },
     });
-    if (!metric) throw new NotFoundException(`Metric #${metricId} not found`);
+    if (!metric) {
+      throw new NotFoundException(`Metric #${metricId} not found`);
+    }
 
     const updatedMetric = await this.prisma.metricsHistory.update({
       where: { id: metricId },
-      data
+      data,
     });
 
     if (data.weight) {
-      await this.prisma.client.update({ where: { id: clientId }, data: { currentWeight: data.weight as number } });
+      await this.prisma.client.update({
+        where: { id: clientId },
+        data: { currentWeight: data.weight as number },
+      });
     }
     return updatedMetric;
   }
