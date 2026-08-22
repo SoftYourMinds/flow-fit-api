@@ -126,3 +126,4 @@ Types: feat · fix · chore · refactor · docs · style
 
 - **2026-07-25**: Disabled sign-up route until admin management system is built.
 - **2026-08-22**: Added `maxParticipants` optional field to `WorkoutSession` model, DTOs, and created migration.
+- **2026-08-22**: Added time slot overlap validation on session create and update (`validateTimeSlot`).

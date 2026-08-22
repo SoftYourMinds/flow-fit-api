@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { UpdateSessionDto } from './dto/update-session.dto';
 import { SessionQueryDto } from './dto/session-query.dto';
@@ -17,17 +22,23 @@ export class SessionsService {
   // ─── Public Methods ─────────────────────────────────────────────
 
   async create(trainerId: number, dto: CreateSessionDto): Promise<WorkoutSession> {
+    const startTime = new Date(dto.startTime);
+    const endTime = new Date(dto.endTime);
+
+    await this.validateTimeSlot(trainerId, startTime, endTime);
+
     return this.prisma.workoutSession.create({
       data: {
         trainerId,
         locationId: dto.locationId,
         type: dto.type,
-        startTime: new Date(dto.startTime),
-        endTime: new Date(dto.endTime),
+        startTime,
+        endTime,
         price: dto.price,
         status: dto.status,
         isPaid: dto.status === 'COMPLETED' ? true : dto.isPaid || false,
         workoutTypes: dto.workoutTypes || [],
+        maxParticipants: dto.maxParticipants,
       },
       include: {
         location: true,
@@ -66,7 +77,14 @@ export class SessionsService {
   }
 
   async update(trainerId: number, id: number, dto: UpdateSessionDto): Promise<WorkoutSession> {
-    await this.findOne(trainerId, id); // Verify ownership
+    const existing = await this.findOne(trainerId, id); // Verify ownership
+
+    const startTime = dto.startTime ? new Date(dto.startTime) : existing.startTime;
+    const endTime = dto.endTime ? new Date(dto.endTime) : existing.endTime;
+
+    if (dto.startTime || dto.endTime) {
+      await this.validateTimeSlot(trainerId, startTime, endTime, id);
+    }
 
     const data: Prisma.WorkoutSessionUpdateInput = {
       location: dto.locationId !== undefined ? { connect: { id: dto.locationId } } : undefined,
@@ -74,13 +92,14 @@ export class SessionsService {
       price: dto.price,
       status: dto.status,
       workoutTypes: dto.workoutTypes,
+      maxParticipants: dto.maxParticipants,
     };
 
     if (dto.startTime) {
-      data.startTime = new Date(dto.startTime);
+      data.startTime = startTime;
     }
     if (dto.endTime) {
-      data.endTime = new Date(dto.endTime);
+      data.endTime = endTime;
     }
 
     // Auto mark as paid if completed
@@ -239,5 +258,33 @@ export class SessionsService {
     }
 
     return where;
+  }
+
+  private async validateTimeSlot(
+    trainerId: number,
+    startTime: Date,
+    endTime: Date,
+    excludeSessionId?: number,
+  ): Promise<void> {
+    if (startTime >= endTime) {
+      throw new BadRequestException('Час завершення тренування має бути пізніше часу початку');
+    }
+
+    const conflictingSession = await this.prisma.workoutSession.findFirst({
+      where: {
+        trainerId,
+        ...(excludeSessionId ? { id: { not: excludeSessionId } } : {}),
+        startTime: {
+          lt: endTime,
+        },
+        endTime: {
+          gt: startTime,
+        },
+      },
+    });
+
+    if (conflictingSession) {
+      throw new ConflictException('На цей час вже створено інше тренування');
+    }
   }
 }
