@@ -155,7 +155,8 @@ model WorkoutSession {
   price     Float         @default(0)
   status    SessionStatus @default(UPCOMING)
   isPaid    Boolean       @default(false) @map("is_paid")
-  workoutTypes String[]   @default([]) @map("workout_types")
+  workoutTypes    String[]   @default([]) @map("workout_types")
+  maxParticipants Int?       @map("max_participants")
 
   participants SessionParticipant[]
 

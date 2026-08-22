@@ -40,4 +40,10 @@ export class CreateSessionDto {
   @IsString({ each: true })
   @IsOptional()
   workoutTypes?: string[];
+
+  @ApiProperty({ required: false, description: 'Max number of participants allowed' })
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  maxParticipants?: number;
 }
