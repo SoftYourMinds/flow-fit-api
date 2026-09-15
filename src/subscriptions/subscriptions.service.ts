@@ -12,6 +12,10 @@ import {
   SubscriptionType,
   WorkoutSession,
 } from '@prisma/client';
+import {
+  generateRecurringCalendarDates,
+  buildUtcSessionTimes,
+} from '../shared/utils/date-time.util';
 
 @Injectable()
 export class SubscriptionsService {
@@ -196,8 +200,24 @@ export class SubscriptionsService {
     const clientId = Number(dto.clientId);
     await this.validateClientOwnership(trainerId, clientId);
 
-    const startDate = new Date(dto.dateFrom);
-    const endDate = new Date(dto.dateTo);
+    const dates = generateRecurringCalendarDates(dto.dateFrom, dto.dateTo, dto.daysOfWeek);
+    if (dates.length === 0) {
+      throw new BadRequestException('У вибраному діапазоні дат не знайдено відповідних днів тижня');
+    }
+
+    const { startTime: startDate } = buildUtcSessionTimes(
+      dates[0],
+      dto.startTime,
+      dto.endTime,
+      dto.timezoneOffset,
+    );
+    const { endTime: endDate } = buildUtcSessionTimes(
+      dates[dates.length - 1],
+      dto.startTime,
+      dto.endTime,
+      dto.timezoneOffset,
+    );
+
     await this.validateNoOverlappingActiveSubscription(
       trainerId,
       clientId,
@@ -205,11 +225,6 @@ export class SubscriptionsService {
       startDate,
       endDate,
     );
-
-    const dates = this.generateRecurringDates(dto.dateFrom, dto.dateTo, dto.daysOfWeek);
-    if (dates.length === 0) {
-      throw new BadRequestException('У вибраному діапазоні дат не знайдено відповідних днів тижня');
-    }
 
     return this.prisma.$transaction(async (tx) => {
       const subscription = await tx.clientSubscription.create({
@@ -229,8 +244,13 @@ export class SubscriptionsService {
       });
 
       let sessionsCreated = 0;
-      for (const date of dates) {
-        const { startTime, endTime } = this.buildSessionTimes(date, dto.startTime, dto.endTime);
+      for (const dateItem of dates) {
+        const { startTime, endTime } = buildUtcSessionTimes(
+          dateItem,
+          dto.startTime,
+          dto.endTime,
+          dto.timezoneOffset,
+        );
 
         const hasConflict = await tx.workoutSession.findFirst({
           where: {
@@ -379,38 +399,5 @@ export class SubscriptionsService {
         throw new BadRequestException('Всі тренування по абонементу використані');
       }
     }
-  }
-
-  private generateRecurringDates(dateFrom: string, dateTo: string, daysOfWeek: number[]): Date[] {
-    const dates: Date[] = [];
-    const from = new Date(dateFrom);
-    const to = new Date(dateTo);
-    const current = new Date(from);
-
-    while (current <= to) {
-      if (daysOfWeek.includes(current.getDay())) {
-        dates.push(new Date(current));
-      }
-      current.setDate(current.getDate() + 1);
-    }
-
-    return dates;
-  }
-
-  private buildSessionTimes(
-    date: Date,
-    startTimeStr: string,
-    endTimeStr: string,
-  ): { startTime: Date; endTime: Date } {
-    const [startH, startM] = startTimeStr.split(':').map(Number);
-    const [endH, endM] = endTimeStr.split(':').map(Number);
-
-    const startTime = new Date(date);
-    startTime.setHours(startH, startM, 0, 0);
-
-    const endTime = new Date(date);
-    endTime.setHours(endH, endM, 0, 0);
-
-    return { startTime, endTime };
   }
 }

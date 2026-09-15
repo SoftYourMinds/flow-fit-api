@@ -12,6 +12,10 @@ import { CreateRecurringSessionsDto } from './dto/create-recurring-sessions.dto'
 import { PrismaService } from '../prisma/prisma.service';
 import { TelegramService } from '../modules/telegram/telegram.service';
 import { Prisma, SessionParticipant, WorkoutSession } from '@prisma/client';
+import {
+  buildUtcSessionTimes,
+  generateRecurringCalendarDates,
+} from '../shared/utils/date-time.util';
 
 @Injectable()
 export class SessionsService {
@@ -227,11 +231,16 @@ export class SessionsService {
     trainerId: number,
     dto: CreateRecurringSessionsDto,
   ): Promise<{ date: string; startTime: string; endTime: string; hasConflict: boolean }[]> {
-    const dates = this.generateRecurringDates(dto);
+    const dates = generateRecurringCalendarDates(dto.dateFrom, dto.dateTo, dto.daysOfWeek);
     const previews = [];
 
-    for (const date of dates) {
-      const { startTime, endTime } = this.buildSessionTimes(date, dto.startTime, dto.endTime);
+    for (const dateItem of dates) {
+      const { startTime, endTime } = buildUtcSessionTimes(
+        dateItem,
+        dto.startTime,
+        dto.endTime,
+        dto.timezoneOffset,
+      );
 
       const conflict = await this.prisma.workoutSession.findFirst({
         where: {
@@ -242,7 +251,7 @@ export class SessionsService {
       });
 
       previews.push({
-        date: date.toISOString().split('T')[0],
+        date: dateItem.dateStr,
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
         hasConflict: !!conflict,
@@ -256,11 +265,16 @@ export class SessionsService {
     trainerId: number,
     dto: CreateRecurringSessionsDto,
   ): Promise<WorkoutSession[]> {
-    const dates = this.generateRecurringDates(dto);
+    const dates = generateRecurringCalendarDates(dto.dateFrom, dto.dateTo, dto.daysOfWeek);
     const createdSessions: WorkoutSession[] = [];
 
-    for (const date of dates) {
-      const { startTime, endTime } = this.buildSessionTimes(date, dto.startTime, dto.endTime);
+    for (const dateItem of dates) {
+      const { startTime, endTime } = buildUtcSessionTimes(
+        dateItem,
+        dto.startTime,
+        dto.endTime,
+        dto.timezoneOffset,
+      );
 
       const hasConflict = await this.prisma.workoutSession.findFirst({
         where: {
@@ -363,38 +377,5 @@ export class SessionsService {
     if (conflictingSession) {
       throw new ConflictException('На цей час вже створено інше тренування');
     }
-  }
-
-  private generateRecurringDates(dto: CreateRecurringSessionsDto): Date[] {
-    const dates: Date[] = [];
-    const from = new Date(dto.dateFrom);
-    const to = new Date(dto.dateTo);
-    const current = new Date(from);
-
-    while (current <= to) {
-      if (dto.daysOfWeek.includes(current.getDay())) {
-        dates.push(new Date(current));
-      }
-      current.setDate(current.getDate() + 1);
-    }
-
-    return dates;
-  }
-
-  private buildSessionTimes(
-    date: Date,
-    startTimeStr: string,
-    endTimeStr: string,
-  ): { startTime: Date; endTime: Date } {
-    const [startH, startM] = startTimeStr.split(':').map(Number);
-    const [endH, endM] = endTimeStr.split(':').map(Number);
-
-    const startTime = new Date(date);
-    startTime.setHours(startH, startM, 0, 0);
-
-    const endTime = new Date(date);
-    endTime.setHours(endH, endM, 0, 0);
-
-    return { startTime, endTime };
   }
 }

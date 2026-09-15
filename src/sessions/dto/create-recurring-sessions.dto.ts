@@ -59,4 +59,13 @@ export class CreateRecurringSessionsDto {
   @IsString({ each: true })
   @IsOptional()
   workoutTypes?: string[];
+
+  @ApiProperty({
+    description: 'Client timezone offset in minutes from UTC (e.g. -180 for UTC+3)',
+    required: false,
+    example: -180,
+  })
+  @IsInt()
+  @IsOptional()
+  timezoneOffset?: number;
 }
