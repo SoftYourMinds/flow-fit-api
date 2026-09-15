@@ -15,6 +15,7 @@ import { AuthGuard } from '@nestjs/passport';
 
 import { SubscriptionsService } from './subscriptions.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
+import { CreateSubscriptionWithRecurringDto } from './dto/create-subscription-with-recurring.dto';
 import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
 import { SubscriptionQueryDto } from './dto/subscription-query.dto';
 import type { AuthenticatedRequest } from '../auth/interfaces/jwt-payload.interface';
@@ -34,6 +35,16 @@ export class SubscriptionsController {
     return this.subscriptionsService.create(req.user.id, dto);
   }
 
+  @Post('with-recurring')
+  @ApiOperation({ summary: 'Create a subscription and generate recurring sessions atomically' })
+  @ApiResponse({ status: 201, description: 'Subscription and sessions created' })
+  createWithRecurring(
+    @Body() dto: CreateSubscriptionWithRecurringDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.subscriptionsService.createWithRecurring(req.user.id, dto);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get all subscriptions' })
   findAll(@Query() query: SubscriptionQueryDto, @Req() req: AuthenticatedRequest) {
@@ -50,6 +61,12 @@ export class SubscriptionsController {
   @ApiOperation({ summary: 'Get a subscription by ID' })
   findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.subscriptionsService.findOne(req.user.id, +id);
+  }
+
+  @Get(':id/sessions')
+  @ApiOperation({ summary: 'Get all workout sessions linked to a subscription' })
+  getSubscriptionSessions(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.subscriptionsService.getSubscriptionSessions(req.user.id, +id);
   }
 
   @Put(':id')

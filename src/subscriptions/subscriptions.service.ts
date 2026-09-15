@@ -2,9 +2,16 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
+import { CreateSubscriptionWithRecurringDto } from './dto/create-subscription-with-recurring.dto';
 import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
 import { SubscriptionQueryDto } from './dto/subscription-query.dto';
-import { ClientSubscription, Prisma, SubscriptionStatus, SubscriptionType } from '@prisma/client';
+import {
+  ClientSubscription,
+  Prisma,
+  SubscriptionStatus,
+  SubscriptionType,
+  WorkoutSession,
+} from '@prisma/client';
 
 @Injectable()
 export class SubscriptionsService {
@@ -151,6 +158,93 @@ export class SubscriptionsService {
     });
   }
 
+  async createWithRecurring(
+    trainerId: number,
+    dto: CreateSubscriptionWithRecurringDto,
+  ): Promise<{ subscription: ClientSubscription; sessionsCount: number }> {
+    await this.validateClientOwnership(trainerId, dto.clientId);
+
+    const dates = this.generateRecurringDates(dto.dateFrom, dto.dateTo, dto.daysOfWeek);
+    if (dates.length === 0) {
+      throw new BadRequestException('У вибраному діапазоні дат не знайдено відповідних днів тижня');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const subscription = await tx.clientSubscription.create({
+        data: {
+          trainerId,
+          clientId: dto.clientId,
+          type: SubscriptionType.DATE_RANGE,
+          startDate: new Date(dto.dateFrom),
+          endDate: new Date(dto.dateTo),
+          totalSessions: dates.length,
+          usedSessions: 0,
+          price: dto.price ?? 0,
+          isPaid: dto.isPaid ?? false,
+          status: SubscriptionStatus.ACTIVE,
+        },
+        include: { client: true },
+      });
+
+      let sessionsCreated = 0;
+      for (const date of dates) {
+        const { startTime, endTime } = this.buildSessionTimes(date, dto.startTime, dto.endTime);
+
+        const hasConflict = await tx.workoutSession.findFirst({
+          where: {
+            trainerId,
+            startTime: { lt: endTime },
+            endTime: { gt: startTime },
+          },
+        });
+
+        if (hasConflict) {
+          continue;
+        }
+
+        await tx.workoutSession.create({
+          data: {
+            trainerId,
+            locationId: dto.locationId,
+            type: 'INDIVIDUAL',
+            startTime,
+            endTime,
+            price: 0,
+            status: 'UPCOMING',
+            isPaid: true,
+            subscriptionId: subscription.id,
+            workoutTypes: dto.workoutTypes || [],
+            participants: {
+              create: { clientId: dto.clientId },
+            },
+          },
+        });
+        sessionsCreated++;
+      }
+
+      return { subscription, sessionsCount: sessionsCreated };
+    });
+  }
+
+  async getSubscriptionSessions(
+    trainerId: number,
+    subscriptionId: number,
+  ): Promise<WorkoutSession[]> {
+    await this.findOne(trainerId, subscriptionId);
+
+    return this.prisma.workoutSession.findMany({
+      where: {
+        trainerId,
+        subscriptionId,
+      },
+      include: {
+        location: true,
+        participants: { include: { client: true } },
+      },
+      orderBy: { startTime: 'asc' },
+    });
+  }
+
   // ─── Private Helpers ────────────────────────────────────────────
 
   private async validateClientOwnership(trainerId: number, clientId: number): Promise<void> {
@@ -199,5 +293,38 @@ export class SubscriptionsService {
         throw new BadRequestException('Всі тренування по абонементу використані');
       }
     }
+  }
+
+  private generateRecurringDates(dateFrom: string, dateTo: string, daysOfWeek: number[]): Date[] {
+    const dates: Date[] = [];
+    const from = new Date(dateFrom);
+    const to = new Date(dateTo);
+    const current = new Date(from);
+
+    while (current <= to) {
+      if (daysOfWeek.includes(current.getDay())) {
+        dates.push(new Date(current));
+      }
+      current.setDate(current.getDate() + 1);
+    }
+
+    return dates;
+  }
+
+  private buildSessionTimes(
+    date: Date,
+    startTimeStr: string,
+    endTimeStr: string,
+  ): { startTime: Date; endTime: Date } {
+    const [startH, startM] = startTimeStr.split(':').map(Number);
+    const [endH, endM] = endTimeStr.split(':').map(Number);
+
+    const startTime = new Date(date);
+    startTime.setHours(startH, startM, 0, 0);
+
+    const endTime = new Date(date);
+    endTime.setHours(endH, endM, 0, 0);
+
+    return { startTime, endTime };
   }
 }

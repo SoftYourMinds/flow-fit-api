@@ -53,6 +53,9 @@ describe('SubscriptionsService', () => {
       },
       workoutSession: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        findMany: jest.fn(),
+        create: jest.fn(),
         update: jest.fn(),
       },
       $transaction: jest.fn((callback: (tx: any) => any) => callback(prisma)),
@@ -169,6 +172,48 @@ describe('SubscriptionsService', () => {
       await expect(
         service.deductSession(mockTrainerId, mockSubscription.id, mockSessionId),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('createWithRecurring', () => {
+    it('should create subscription and recurring sessions in transaction', async () => {
+      prisma.client.findUnique.mockResolvedValue({ id: mockClientId, trainerId: mockTrainerId });
+      prisma.clientSubscription.create.mockResolvedValue(mockSubscription);
+      prisma.workoutSession.findFirst.mockResolvedValue(null);
+      prisma.workoutSession.create.mockResolvedValue(mockSession);
+
+      const result = await service.createWithRecurring(mockTrainerId, {
+        clientId: mockClientId,
+        locationId: 1,
+        daysOfWeek: [1, 3, 5],
+        startTime: '10:00',
+        endTime: '11:00',
+        dateFrom: '2026-10-01',
+        dateTo: '2026-10-14',
+        price: 3000,
+        isPaid: true,
+      });
+
+      expect(result.subscription).toEqual(mockSubscription);
+      expect(result.sessionsCount).toBeGreaterThan(0);
+      expect(prisma.clientSubscription.create).toHaveBeenCalled();
+      expect(prisma.workoutSession.create).toHaveBeenCalled();
+    });
+  });
+
+  describe('getSubscriptionSessions', () => {
+    it('should return sessions linked to subscription', async () => {
+      prisma.clientSubscription.findUnique.mockResolvedValue(mockSubscription);
+      prisma.workoutSession.findMany.mockResolvedValue([mockSession]);
+
+      const result = await service.getSubscriptionSessions(mockTrainerId, mockSubscription.id);
+
+      expect(result).toEqual([mockSession]);
+      expect(prisma.workoutSession.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { trainerId: mockTrainerId, subscriptionId: mockSubscription.id },
+        }),
+      );
     });
   });
 });
