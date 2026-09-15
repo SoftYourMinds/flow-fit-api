@@ -34,8 +34,9 @@ _(empty — fresh project, no tech debt yet)_
 | `ClientNote`         | `id`, `clientId`, `text`, `links` (String[]), `createdAt`                           | Belongs to Client                          |
 | `MetricsHistory`     | `id`, `clientId`, `weight`, `measurements`, `note`, `createdAt`                     | Belongs to Client                          |
 | `Location`           | `id`, `trainerId`, `name`, `type` (STUDIO/GYM/OUTDOOR), `address`                  | Belongs to User. Has many: Sessions        |
-| `WorkoutSession`     | `id`, `trainerId`, `locationId`, `type`, `startTime`, `endTime`, `pricePerPerson`, `status` | Belongs to User, Location. Has many: Participants |
+| `WorkoutSession`     | `id`, `trainerId`, `locationId`, `subscriptionId` (nullable), `type`, `startTime`, `endTime`, `pricePerPerson`, `status` | Belongs to User, Location, ClientSubscription. Has many: Participants |
 | `SessionParticipant` | `id`, `sessionId`, `clientId` (nullable), `customName` (nullable)                   | Belongs to Session, optionally to Client   |
+| `ClientSubscription` | `id`, `trainerId`, `clientId`, `type`, `status`, `totalSessions`, `usedSessions`, `startDate`, `endDate`, `price`, `isPaid`, `reminderSent` | Belongs to User, Client. Has many: WorkoutSessions |
 
 ### Enums
 
@@ -43,10 +44,12 @@ _(empty — fresh project, no tech debt yet)_
 - `LocationType`: STUDIO, GYM, OUTDOOR
 - `SessionType`: INDIVIDUAL, GROUP
 - `SessionStatus`: UPCOMING, ACTIVE, REQUIRED_ACTION, COMPLETED, MISSED
+- `SubscriptionType`: SESSIONS_BASED, DATE_RANGE
+- `SubscriptionStatus`: ACTIVE, EXPIRED, EXHAUSTED
 
-### Module Map (`src/modules/`)
+### Module Map (`src/modules/` & `src/`)
 
-auth · user · client · client-note · metrics · location · workout-session · participant · scheduler · telegram · reports · shared
+auth · user · client · client-note · metrics · location · workout-session · participant · scheduler · telegram · reports · shared · subscriptions
 
 ---
 
@@ -127,3 +130,4 @@ Types: feat · fix · chore · refactor · docs · style
 - **2026-07-25**: Disabled sign-up route until admin management system is built.
 - **2026-08-22**: Added `maxParticipants` optional field to `WorkoutSession` model, DTOs, and created migration.
 - **2026-08-22**: Added time slot overlap validation on session create and update (`validateTimeSlot`).
+- **2026-09-15**: Added client subscriptions (`ClientSubscription` model, `SubscriptionsModule`, deduction flow, recurring sessions batch generation `POST /sessions/recurring`, and auto-expiration reminders in `SchedulerService`).
