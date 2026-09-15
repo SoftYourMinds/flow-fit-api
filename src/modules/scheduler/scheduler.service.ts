@@ -1,11 +1,22 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TelegramService } from '../telegram/telegram.service';
-import { Location, SessionParticipant, WorkoutSession } from '@prisma/client';
+import {
+  Client,
+  ClientSubscription,
+  Location,
+  SessionParticipant,
+  SubscriptionType,
+  WorkoutSession,
+} from '@prisma/client';
 
 type SessionWithDetails = WorkoutSession & {
   location: Location | null;
-  participants: Array<SessionParticipant & { client: { fullName: string } | null }>;
+  participants: Array<
+    SessionParticipant & {
+      client: (Client & { subscriptions?: ClientSubscription[] }) | null;
+    }
+  >;
 };
 
 @Injectable()
@@ -68,7 +79,20 @@ export class SchedulerService {
           where: {
             startTime: { gte: startOfDay, lte: endOfDay },
           },
-          include: { location: true, participants: { include: { client: true } } },
+          include: {
+            location: true,
+            participants: {
+              include: {
+                client: {
+                  include: {
+                    subscriptions: {
+                      where: { status: 'ACTIVE' },
+                    },
+                  },
+                },
+              },
+            },
+          },
           orderBy: { startTime: 'asc' },
         },
       },
@@ -123,6 +147,63 @@ export class SchedulerService {
     }
   }
 
+  async checkSubscriptionExpirations(): Promise<void> {
+    this.logger.log('Checking subscription expirations...');
+    const now = new Date();
+    const threeDaysFromNow = new Date(now);
+    threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+
+    // Auto-expire DATE_RANGE subscriptions past endDate
+    await this.prisma.clientSubscription.updateMany({
+      where: {
+        status: 'ACTIVE',
+        type: 'DATE_RANGE',
+        endDate: { lte: now },
+      },
+      data: { status: 'EXPIRED' },
+    });
+
+    // Find subscriptions approaching expiration (not yet reminded)
+    const expiringSubscriptions = await this.prisma.clientSubscription.findMany({
+      where: {
+        status: 'ACTIVE',
+        reminderSent: false,
+        OR: [
+          // DATE_RANGE: endDate within 3 days
+          {
+            type: 'DATE_RANGE',
+            endDate: { lte: threeDaysFromNow, gt: now },
+          },
+          // SESSIONS_BASED: 2 or fewer sessions remaining
+          {
+            type: 'SESSIONS_BASED',
+            totalSessions: { not: null },
+          },
+        ],
+      },
+      include: {
+        client: true,
+        trainer: true,
+      },
+    });
+
+    for (const sub of expiringSubscriptions) {
+      const shouldRemind = this.shouldSendReminder(sub);
+      if (!shouldRemind) continue;
+      if (!sub.trainer.tgChatId) continue;
+
+      const message = this.buildSubscriptionExpirationMessage(sub);
+      await this.telegramService.sendMessage(sub.trainer.tgChatId, message);
+
+      await this.prisma.clientSubscription.update({
+        where: { id: sub.id },
+        data: { reminderSent: true },
+      });
+
+      this.logger.log(`Sent expiration reminder for subscription ${sub.id}`);
+    }
+  }
+
   // ─── Private Helpers ────────────────────────────────────────────
 
   private getTodayDateRange(): { startOfDay: Date; endOfDay: Date } {
@@ -153,6 +234,21 @@ export class SchedulerService {
       if (session.location) {
         message += `📍 Локація: ${session.location.name}\n`;
       }
+
+      for (const p of session.participants) {
+        const activeSub = p.client?.subscriptions?.[0];
+        if (activeSub) {
+          const isLastSession =
+            activeSub.type === SubscriptionType.SESSIONS_BASED &&
+            activeSub.totalSessions !== null &&
+            activeSub.totalSessions - activeSub.usedSessions <= 1;
+
+          if (isLastSession) {
+            message += `⚠️ <i>Останнє заняття за абонементом клієнта ${p.client?.fullName}!</i>\n`;
+          }
+        }
+      }
+
       message += `\n`;
     }
 
@@ -174,5 +270,48 @@ export class SchedulerService {
 
     message += `\nВідпочивай та відновлюйся 😴`;
     return message;
+  }
+
+  private shouldSendReminder(sub: ClientSubscription & { client: { fullName: string } }): boolean {
+    if (sub.type === SubscriptionType.DATE_RANGE) {
+      return true; // Already filtered by query (endDate within 3 days)
+    }
+
+    if (sub.type === SubscriptionType.SESSIONS_BASED && sub.totalSessions) {
+      const remaining = sub.totalSessions - sub.usedSessions;
+      return remaining <= 2;
+    }
+
+    return false;
+  }
+
+  private buildSubscriptionExpirationMessage(
+    sub: ClientSubscription & { client: { fullName: string } },
+  ): string {
+    const clientName = sub.client.fullName;
+
+    if (sub.type === SubscriptionType.DATE_RANGE && sub.endDate) {
+      const endDateStr = sub.endDate.toLocaleDateString('uk-UA', {
+        day: 'numeric',
+        month: 'long',
+        timeZone: 'Europe/Kyiv',
+      });
+      return (
+        `⚠️ <b>Абонемент закінчується!</b>\n\n` +
+        `Клієнт: <b>${clientName}</b>\n` +
+        `Тип: По датах\n` +
+        `Закінчується: ${endDateStr}\n\n` +
+        `💡 <i>Час запропонувати продовження!</i>`
+      );
+    }
+
+    const remaining = (sub.totalSessions ?? 0) - sub.usedSessions;
+    return (
+      `⚠️ <b>Абонемент майже вичерпано!</b>\n\n` +
+      `Клієнт: <b>${clientName}</b>\n` +
+      `Тип: По кількості тренувань\n` +
+      `Залишилось: ${remaining} з ${sub.totalSessions}\n\n` +
+      `💡 <i>Час запропонувати продовження!</i>`
+    );
   }
 }
