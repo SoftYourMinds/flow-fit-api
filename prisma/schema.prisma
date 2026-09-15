@@ -33,6 +33,17 @@ enum SessionStatus {
   MISSED
 }
 
+enum SubscriptionType {
+  SESSIONS_BASED
+  DATE_RANGE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  EXHAUSTED
+}
+
 model User {
   id           Int      @id @default(autoincrement())
   email        String   @unique
@@ -45,9 +56,10 @@ model User {
   hashedRefreshToken String? @map("hashed_refresh_token")
   tgLinkToken        String? @unique @map("tg_link_token")
 
-  clients   Client[]
-  locations Location[]
-  sessions  WorkoutSession[]
+  clients       Client[]
+  locations     Location[]
+  sessions      WorkoutSession[]
+  subscriptions ClientSubscription[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -73,6 +85,7 @@ model Client {
   notes          ClientNote[]
   metrics        MetricsHistory[]
   participations SessionParticipant[]
+  subscriptions  ClientSubscription[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -143,11 +156,13 @@ model Location {
 }
 
 model WorkoutSession {
-  id         Int      @id @default(autoincrement())
-  trainerId  Int      @map("trainer_id")
-  trainer    User     @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-  locationId Int      @map("location_id")
-  location   Location @relation(fields: [locationId], references: [id])
+  id             Int      @id @default(autoincrement())
+  trainerId      Int      @map("trainer_id")
+  trainer        User     @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  locationId     Int      @map("location_id")
+  location       Location @relation(fields: [locationId], references: [id])
+  subscriptionId Int?     @map("subscription_id")
+  subscription   ClientSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
 
   type      SessionType   @default(INDIVIDUAL)
   startTime DateTime      @map("start_time")
@@ -166,6 +181,7 @@ model WorkoutSession {
   @@index([trainerId])
   @@index([trainerId, startTime])
   @@index([status])
+  @@index([subscriptionId])
   @@map("workout_sessions")
 }
 
@@ -184,4 +200,32 @@ model SessionParticipant {
   @@index([sessionId])
   @@index([clientId])
   @@map("session_participants")
+}
+
+model ClientSubscription {
+  id        Int    @id @default(autoincrement())
+  trainerId Int    @map("trainer_id")
+  trainer   User   @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  clientId  Int    @map("client_id")
+  client    Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  type          SubscriptionType   @default(SESSIONS_BASED)
+  status        SubscriptionStatus @default(ACTIVE)
+  totalSessions Int?               @map("total_sessions")
+  usedSessions  Int                @default(0) @map("used_sessions")
+  startDate     DateTime?          @map("start_date")
+  endDate       DateTime?          @map("end_date")
+  price         Float              @default(0)
+  isPaid        Boolean            @default(false) @map("is_paid")
+  reminderSent  Boolean            @default(false) @map("reminder_sent")
+
+  sessions WorkoutSession[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([trainerId])
+  @@index([clientId])
+  @@index([trainerId, status])
+  @@map("client_subscriptions")
 }
