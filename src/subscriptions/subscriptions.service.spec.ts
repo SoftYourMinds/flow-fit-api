@@ -57,6 +57,8 @@ describe('SubscriptionsService', () => {
         findMany: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
+        delete: jest.fn(),
+        count: jest.fn(),
       },
       $transaction: jest.fn((callback: (tx: any) => any) => callback(prisma)),
     };
@@ -248,6 +250,186 @@ describe('SubscriptionsService', () => {
           where: { trainerId: mockTrainerId, subscriptionId: mockSubscription.id },
         }),
       );
+    });
+  });
+
+  describe('recalculateSubscriptionUsage', () => {
+    it('should recalculate usedSessions based on workoutSession.count', async () => {
+      prisma.clientSubscription.findUnique.mockResolvedValue(mockSubscription);
+      prisma.workoutSession.count.mockResolvedValue(4);
+      prisma.clientSubscription.update.mockResolvedValue({
+        ...mockSubscription,
+        usedSessions: 4,
+      });
+
+      const result = await service.recalculateSubscriptionUsage(mockTrainerId, mockSubscription.id);
+
+      expect(prisma.workoutSession.count).toHaveBeenCalledWith({
+        where: { trainerId: mockTrainerId, subscriptionId: mockSubscription.id },
+      });
+      expect(prisma.clientSubscription.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: mockSubscription.id },
+          data: expect.objectContaining({ usedSessions: 4, status: SubscriptionStatus.ACTIVE }),
+        }),
+      );
+      expect(result.usedSessions).toBe(4);
+    });
+
+    it('should mark subscription EXHAUSTED if actual count reaches totalSessions', async () => {
+      prisma.clientSubscription.findUnique.mockResolvedValue({
+        ...mockSubscription,
+        totalSessions: 10,
+        status: SubscriptionStatus.ACTIVE,
+      });
+      prisma.workoutSession.count.mockResolvedValue(10);
+      prisma.clientSubscription.update.mockResolvedValue({
+        ...mockSubscription,
+        usedSessions: 10,
+        status: SubscriptionStatus.EXHAUSTED,
+      });
+
+      await service.recalculateSubscriptionUsage(mockTrainerId, mockSubscription.id);
+
+      expect(prisma.clientSubscription.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            usedSessions: 10,
+            status: SubscriptionStatus.EXHAUSTED,
+          }),
+        }),
+      );
+    });
+
+    it('should restore status to ACTIVE if previously EXHAUSTED and count is now less than total', async () => {
+      prisma.clientSubscription.findUnique.mockResolvedValue({
+        ...mockSubscription,
+        totalSessions: 10,
+        status: SubscriptionStatus.EXHAUSTED,
+      });
+      prisma.workoutSession.count.mockResolvedValue(9);
+      prisma.clientSubscription.update.mockResolvedValue({
+        ...mockSubscription,
+        usedSessions: 9,
+        status: SubscriptionStatus.ACTIVE,
+      });
+
+      await service.recalculateSubscriptionUsage(mockTrainerId, mockSubscription.id);
+
+      expect(prisma.clientSubscription.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            usedSessions: 9,
+            status: SubscriptionStatus.ACTIVE,
+          }),
+        }),
+      );
+    });
+
+    it('should throw NotFoundException if subscription not found or belongs to another trainer', async () => {
+      prisma.clientSubscription.findUnique.mockResolvedValue({
+        ...mockSubscription,
+        trainerId: 999,
+      });
+
+      await expect(
+        service.recalculateSubscriptionUsage(mockTrainerId, mockSubscription.id),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('unlinkSession', () => {
+    it('should unlink session and recalculate subscription usage', async () => {
+      prisma.clientSubscription.findUnique.mockResolvedValue(mockSubscription);
+      prisma.workoutSession.findUnique.mockResolvedValue({
+        ...mockSession,
+        subscriptionId: mockSubscription.id,
+      });
+      prisma.workoutSession.update.mockResolvedValue({
+        ...mockSession,
+        subscriptionId: null,
+        isPaid: false,
+      });
+      prisma.workoutSession.count.mockResolvedValue(3);
+      prisma.clientSubscription.update.mockResolvedValue({
+        ...mockSubscription,
+        usedSessions: 3,
+      });
+
+      const result = await service.unlinkSession(mockTrainerId, mockSubscription.id, mockSessionId);
+
+      expect(prisma.workoutSession.update).toHaveBeenCalledWith({
+        where: { id: mockSessionId },
+        data: { subscriptionId: null, isPaid: false },
+      });
+      expect(result.usedSessions).toBe(3);
+    });
+
+    it('should throw BadRequestException if session is not linked to this subscription', async () => {
+      prisma.clientSubscription.findUnique.mockResolvedValue(mockSubscription);
+      prisma.workoutSession.findUnique.mockResolvedValue({
+        ...mockSession,
+        subscriptionId: 999,
+      });
+
+      await expect(
+        service.unlinkSession(mockTrainerId, mockSubscription.id, mockSessionId),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('reconcileAllSubscriptions', () => {
+    it('should update subscriptions whose counts or statuses are out of sync', async () => {
+      const outOfSyncSub = {
+        ...mockSubscription,
+        id: 1,
+        usedSessions: 7, // Says 7 in DB, but actually 4
+        totalSessions: 12,
+        status: SubscriptionStatus.ACTIVE,
+      };
+      prisma.clientSubscription.findMany.mockResolvedValue([outOfSyncSub]);
+      prisma.workoutSession.count.mockResolvedValue(4);
+      prisma.clientSubscription.update.mockResolvedValue({
+        ...outOfSyncSub,
+        usedSessions: 4,
+      });
+
+      const res = await service.reconcileAllSubscriptions(mockTrainerId);
+
+      expect(res.reconciledCount).toBe(1);
+      expect(prisma.clientSubscription.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { usedSessions: 4, status: SubscriptionStatus.ACTIVE },
+      });
+    });
+
+    it('should do nothing if subscriptions are already in sync', async () => {
+      const inSyncSub = {
+        ...mockSubscription,
+        id: 2,
+        usedSessions: 4,
+        totalSessions: 12,
+        status: SubscriptionStatus.ACTIVE,
+      };
+      prisma.clientSubscription.findMany.mockResolvedValue([inSyncSub]);
+      prisma.workoutSession.count.mockResolvedValue(4);
+
+      const res = await service.reconcileAllSubscriptions(mockTrainerId);
+
+      expect(res.reconciledCount).toBe(0);
+      expect(prisma.clientSubscription.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onApplicationBootstrap', () => {
+    it('should trigger reconcileAllSubscriptions on boot', async () => {
+      const spy = jest
+        .spyOn(service, 'reconcileAllSubscriptions')
+        .mockResolvedValue({ reconciledCount: 0 });
+
+      await service.onApplicationBootstrap();
+
+      expect(spy).toHaveBeenCalled();
     });
   });
 });

@@ -95,4 +95,22 @@ export class SubscriptionsController {
   ) {
     return this.subscriptionsService.deductSession(req.user.id, +id, +sessionId);
   }
+
+  @Delete(':id/sessions/:sessionId')
+  @ApiOperation({ summary: 'Unlink a session from a subscription' })
+  @ApiResponse({ status: 200, description: 'Session unlinked and subscription usage recalculated' })
+  unlinkSession(
+    @Param('id') id: string,
+    @Param('sessionId') sessionId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.subscriptionsService.unlinkSession(req.user.id, +id, +sessionId);
+  }
+
+  @Post(':id/reconcile')
+  @ApiOperation({ summary: 'Reconcile subscription usage with actual sessions count' })
+  @ApiResponse({ status: 200, description: 'Subscription usage reconciled' })
+  reconcile(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.subscriptionsService.recalculateSubscriptionUsage(req.user.id, +id);
+  }
 }

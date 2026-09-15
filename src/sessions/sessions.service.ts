@@ -11,6 +11,7 @@ import { AddParticipantDto } from './dto/add-participant.dto';
 import { CreateRecurringSessionsDto } from './dto/create-recurring-sessions.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TelegramService } from '../modules/telegram/telegram.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { Prisma, SessionParticipant, WorkoutSession } from '@prisma/client';
 import {
   buildUtcSessionTimes,
@@ -22,6 +23,7 @@ export class SessionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly telegramService: TelegramService,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
   // ─── Public Methods ─────────────────────────────────────────────
@@ -137,7 +139,23 @@ export class SessionsService {
   }
 
   async remove(trainerId: number, id: number): Promise<WorkoutSession> {
-    await this.findOne(trainerId, id); // Verify ownership
+    const session = await this.findOne(trainerId, id); // Verify ownership
+
+    if (session.subscriptionId) {
+      return this.prisma.$transaction(async (tx) => {
+        const deleted = await tx.workoutSession.delete({
+          where: { id },
+        });
+
+        await this.subscriptionsService.recalculateSubscriptionUsage(
+          trainerId,
+          session.subscriptionId!,
+          tx,
+        );
+
+        return deleted;
+      });
+    }
 
     return this.prisma.workoutSession.delete({
       where: { id },
@@ -308,6 +326,10 @@ export class SessionsService {
       });
 
       createdSessions.push(session);
+    }
+
+    if (dto.subscriptionId && createdSessions.length > 0) {
+      await this.subscriptionsService.recalculateSubscriptionUsage(trainerId, dto.subscriptionId);
     }
 
     return createdSessions;

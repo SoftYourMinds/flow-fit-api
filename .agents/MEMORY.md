@@ -131,3 +131,4 @@ Types: feat · fix · chore · refactor · docs · style
 - **2026-08-22**: Added `maxParticipants` optional field to `WorkoutSession` model, DTOs, and created migration.
 - **2026-08-22**: Added time slot overlap validation on session create and update (`validateTimeSlot`).
 - **2026-09-15**: Added client subscriptions (`ClientSubscription` model, `SubscriptionsModule`, deduction flow, recurring sessions batch generation `POST /sessions/recurring`, and auto-expiration reminders in `SchedulerService`).
+- **2026-09-16**: Fixed subscription usage synchronization on session deletion/unlinking (`recalculateSubscriptionUsage`, `reconcileAllSubscriptions` on bootstrap, transactional remove in `SessionsService`).

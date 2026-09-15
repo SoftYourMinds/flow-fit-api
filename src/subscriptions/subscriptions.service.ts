@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  OnApplicationBootstrap,
+} from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
@@ -18,8 +23,12 @@ import {
 } from '../shared/utils/date-time.util';
 
 @Injectable()
-export class SubscriptionsService {
+export class SubscriptionsService implements OnApplicationBootstrap {
   constructor(private readonly prisma: PrismaService) {}
+
+  async onApplicationBootstrap(): Promise<void> {
+    await this.reconcileAllSubscriptions();
+  }
 
   // ─── Public Methods ─────────────────────────────────────────────
 
@@ -180,6 +189,106 @@ export class SubscriptionsService {
         include: { client: true },
       });
     });
+  }
+
+  async unlinkSession(
+    trainerId: number,
+    subscriptionId: number,
+    sessionId: number,
+  ): Promise<ClientSubscription> {
+    await this.findOne(trainerId, subscriptionId);
+
+    const session = await this.prisma.workoutSession.findUnique({
+      where: { id: sessionId },
+    });
+
+    if (!session || session.trainerId !== trainerId) {
+      throw new NotFoundException('Тренування не знайдено');
+    }
+
+    if (session.subscriptionId !== subscriptionId) {
+      throw new BadRequestException('Це тренування не прив’язане до цього абонементу');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.workoutSession.update({
+        where: { id: sessionId },
+        data: {
+          subscriptionId: null,
+          isPaid: false,
+        },
+      });
+
+      return this.recalculateSubscriptionUsage(trainerId, subscriptionId, tx);
+    });
+  }
+
+  async recalculateSubscriptionUsage(
+    trainerId: number,
+    subscriptionId: number,
+    tx?: Prisma.TransactionClient,
+  ): Promise<ClientSubscription> {
+    const prismaClient = tx ?? this.prisma;
+
+    const subscription = await prismaClient.clientSubscription.findUnique({
+      where: { id: subscriptionId },
+    });
+
+    if (!subscription || subscription.trainerId !== trainerId) {
+      throw new NotFoundException('Абонемент не знайдено');
+    }
+
+    const actualSessionsCount = await prismaClient.workoutSession.count({
+      where: {
+        trainerId,
+        subscriptionId,
+      },
+    });
+
+    const nextStatus = this.determineNextSubscriptionStatus(subscription, actualSessionsCount);
+
+    return prismaClient.clientSubscription.update({
+      where: { id: subscriptionId },
+      data: {
+        usedSessions: actualSessionsCount,
+        status: nextStatus,
+      },
+      include: { client: true },
+    });
+  }
+
+  async reconcileAllSubscriptions(trainerId?: number): Promise<{ reconciledCount: number }> {
+    const where: Prisma.ClientSubscriptionWhereInput = trainerId ? { trainerId } : {};
+    const subscriptions = await this.prisma.clientSubscription.findMany({ where });
+
+    let reconciledCount = 0;
+
+    for (const sub of subscriptions) {
+      const actualCount = await this.prisma.workoutSession.count({
+        where: {
+          trainerId: sub.trainerId,
+          subscriptionId: sub.id,
+        },
+      });
+
+      const nextStatus = this.determineNextSubscriptionStatus(sub, actualCount);
+      const needsUpdate = sub.usedSessions !== actualCount || sub.status !== nextStatus;
+
+      if (!needsUpdate) {
+        continue;
+      }
+
+      await this.prisma.clientSubscription.update({
+        where: { id: sub.id },
+        data: {
+          usedSessions: actualCount,
+          status: nextStatus,
+        },
+      });
+      reconciledCount++;
+    }
+
+    return { reconciledCount };
   }
 
   async getActiveForClient(trainerId: number, clientId: number): Promise<ClientSubscription[]> {
@@ -399,5 +508,29 @@ export class SubscriptionsService {
         throw new BadRequestException('Всі тренування по абонементу використані');
       }
     }
+  }
+
+  private determineNextSubscriptionStatus(
+    subscription: ClientSubscription,
+    actualSessionsCount: number,
+  ): SubscriptionStatus {
+    const isSessionsBased =
+      subscription.type === SubscriptionType.SESSIONS_BASED && subscription.totalSessions !== null;
+
+    if (!isSessionsBased) {
+      return subscription.status;
+    }
+
+    const isExhausted = actualSessionsCount >= (subscription.totalSessions ?? 0);
+    if (isExhausted) {
+      return SubscriptionStatus.EXHAUSTED;
+    }
+
+    const wasExhausted = subscription.status === SubscriptionStatus.EXHAUSTED;
+    if (wasExhausted) {
+      return SubscriptionStatus.ACTIVE;
+    }
+
+    return subscription.status;
   }
 }

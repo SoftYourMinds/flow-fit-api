@@ -3,9 +3,10 @@ import { SessionsService } from './sessions.service';
 import { SessionsController } from './sessions.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { TelegramModule } from '../modules/telegram/telegram.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
-  imports: [PrismaModule, TelegramModule],
+  imports: [PrismaModule, TelegramModule, SubscriptionsModule],
   controllers: [SessionsController],
   providers: [SessionsService],
 })
