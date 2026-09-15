@@ -8,6 +8,7 @@ import { CreateSessionDto } from './dto/create-session.dto';
 import { UpdateSessionDto } from './dto/update-session.dto';
 import { SessionQueryDto } from './dto/session-query.dto';
 import { AddParticipantDto } from './dto/add-participant.dto';
+import { CreateRecurringSessionsDto } from './dto/create-recurring-sessions.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TelegramService } from '../modules/telegram/telegram.service';
 import { Prisma, SessionParticipant, WorkoutSession } from '@prisma/client';
@@ -222,6 +223,82 @@ export class SessionsService {
     return createdSessions;
   }
 
+  async previewRecurringSessions(
+    trainerId: number,
+    dto: CreateRecurringSessionsDto,
+  ): Promise<{ date: string; startTime: string; endTime: string; hasConflict: boolean }[]> {
+    const dates = this.generateRecurringDates(dto);
+    const previews = [];
+
+    for (const date of dates) {
+      const { startTime, endTime } = this.buildSessionTimes(date, dto.startTime, dto.endTime);
+
+      const conflict = await this.prisma.workoutSession.findFirst({
+        where: {
+          trainerId,
+          startTime: { lt: endTime },
+          endTime: { gt: startTime },
+        },
+      });
+
+      previews.push({
+        date: date.toISOString().split('T')[0],
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        hasConflict: !!conflict,
+      });
+    }
+
+    return previews;
+  }
+
+  async createRecurringSessions(
+    trainerId: number,
+    dto: CreateRecurringSessionsDto,
+  ): Promise<WorkoutSession[]> {
+    const dates = this.generateRecurringDates(dto);
+    const createdSessions: WorkoutSession[] = [];
+
+    for (const date of dates) {
+      const { startTime, endTime } = this.buildSessionTimes(date, dto.startTime, dto.endTime);
+
+      const hasConflict = await this.prisma.workoutSession.findFirst({
+        where: {
+          trainerId,
+          startTime: { lt: endTime },
+          endTime: { gt: startTime },
+        },
+      });
+
+      if (hasConflict) continue;
+
+      const session = await this.prisma.workoutSession.create({
+        data: {
+          trainerId,
+          locationId: dto.locationId,
+          type: 'INDIVIDUAL',
+          startTime,
+          endTime,
+          price: dto.price ?? 0,
+          status: 'UPCOMING',
+          workoutTypes: dto.workoutTypes || [],
+          subscriptionId: dto.subscriptionId,
+          participants: {
+            create: { clientId: dto.clientId },
+          },
+        },
+        include: {
+          location: true,
+          participants: { include: { client: true } },
+        },
+      });
+
+      createdSessions.push(session);
+    }
+
+    return createdSessions;
+  }
+
   // ─── Private Helpers ────────────────────────────────────────────
 
   private buildFindAllWhereClause(
@@ -286,5 +363,38 @@ export class SessionsService {
     if (conflictingSession) {
       throw new ConflictException('На цей час вже створено інше тренування');
     }
+  }
+
+  private generateRecurringDates(dto: CreateRecurringSessionsDto): Date[] {
+    const dates: Date[] = [];
+    const from = new Date(dto.dateFrom);
+    const to = new Date(dto.dateTo);
+    const current = new Date(from);
+
+    while (current <= to) {
+      if (dto.daysOfWeek.includes(current.getDay())) {
+        dates.push(new Date(current));
+      }
+      current.setDate(current.getDate() + 1);
+    }
+
+    return dates;
+  }
+
+  private buildSessionTimes(
+    date: Date,
+    startTimeStr: string,
+    endTimeStr: string,
+  ): { startTime: Date; endTime: Date } {
+    const [startH, startM] = startTimeStr.split(':').map(Number);
+    const [endH, endM] = endTimeStr.split(':').map(Number);
+
+    const startTime = new Date(date);
+    startTime.setHours(startH, startM, 0, 0);
+
+    const endTime = new Date(date);
+    endTime.setHours(endH, endM, 0, 0);
+
+    return { startTime, endTime };
   }
 }

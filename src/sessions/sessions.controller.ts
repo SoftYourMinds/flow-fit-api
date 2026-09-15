@@ -16,6 +16,7 @@ import { CreateSessionDto } from './dto/create-session.dto';
 import { UpdateSessionDto } from './dto/update-session.dto';
 import { SessionQueryDto } from './dto/session-query.dto';
 import { AddParticipantDto } from './dto/add-participant.dto';
+import { CreateRecurringSessionsDto } from './dto/create-recurring-sessions.dto';
 import type { AuthenticatedRequest } from '../auth/interfaces/jwt-payload.interface';
 
 @UseGuards(AuthGuard('jwt'))
@@ -42,6 +43,16 @@ export class SessionsController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.sessionsService.duplicateWeek(req.user.id, sourceStart, targetStart);
+  }
+
+  @Post('recurring/preview')
+  previewRecurring(@Body() dto: CreateRecurringSessionsDto, @Req() req: AuthenticatedRequest) {
+    return this.sessionsService.previewRecurringSessions(req.user.id, dto);
+  }
+
+  @Post('recurring')
+  createRecurring(@Body() dto: CreateRecurringSessionsDto, @Req() req: AuthenticatedRequest) {
+    return this.sessionsService.createRecurringSessions(req.user.id, dto);
   }
 
   @Get(':id')
