@@ -45,7 +45,7 @@ describe('SubscriptionsService', () => {
       },
       clientSubscription: {
         create: jest.fn(),
-        findMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
@@ -98,6 +98,40 @@ describe('SubscriptionsService', () => {
           totalSessions: 10,
         }),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException when client already has active sessions subscription', async () => {
+      prisma.client.findUnique.mockResolvedValue({ id: mockClientId, trainerId: mockTrainerId });
+      prisma.clientSubscription.findMany.mockResolvedValue([mockSubscription]);
+
+      await expect(
+        service.create(mockTrainerId, {
+          clientId: mockClientId,
+          type: SubscriptionType.SESSIONS_BASED,
+          totalSessions: 8,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when date range overlaps existing active subscription', async () => {
+      prisma.client.findUnique.mockResolvedValue({ id: mockClientId, trainerId: mockTrainerId });
+      prisma.clientSubscription.findMany.mockResolvedValue([
+        {
+          ...mockSubscription,
+          type: SubscriptionType.DATE_RANGE,
+          startDate: new Date('2026-09-01'),
+          endDate: new Date('2026-09-30'),
+        },
+      ]);
+
+      await expect(
+        service.create(mockTrainerId, {
+          clientId: mockClientId,
+          type: SubscriptionType.DATE_RANGE,
+          startDate: '2026-09-15',
+          endDate: '2026-10-15',
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

@@ -4,7 +4,7 @@ import { AppModule } from './app.module';
 import { loggerConfig } from './logger/logger.config';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import express, { Request, Response } from 'express';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 
 const server = express();
 let cachedApp: INestApplication | undefined;
@@ -18,6 +18,13 @@ async function bootstrap(): Promise<INestApplication> {
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
   await app.init();
   return app;
 }

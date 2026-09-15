@@ -19,6 +19,10 @@ export class ClientsService {
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
+        subscriptions: {
+          where: { status: 'ACTIVE' },
+          take: 1,
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -34,6 +38,9 @@ export class ClientsService {
           include: { session: { include: { location: true } } },
           orderBy: { session: { startTime: 'desc' } },
           take: 50,
+        },
+        subscriptions: {
+          orderBy: { createdAt: 'desc' },
         },
       },
     });

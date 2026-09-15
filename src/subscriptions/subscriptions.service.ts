@@ -20,17 +20,28 @@ export class SubscriptionsService {
   // ─── Public Methods ─────────────────────────────────────────────
 
   async create(trainerId: number, dto: CreateSubscriptionDto): Promise<ClientSubscription> {
-    await this.validateClientOwnership(trainerId, dto.clientId);
+    const clientId = Number(dto.clientId);
+    await this.validateClientOwnership(trainerId, clientId);
     this.validateSubscriptionFields(dto);
+
+    const startDate = dto.startDate ? new Date(dto.startDate) : undefined;
+    const endDate = dto.endDate ? new Date(dto.endDate) : undefined;
+    await this.validateNoOverlappingActiveSubscription(
+      trainerId,
+      clientId,
+      dto.type || SubscriptionType.SESSIONS_BASED,
+      startDate,
+      endDate,
+    );
 
     return this.prisma.clientSubscription.create({
       data: {
         trainerId,
-        clientId: dto.clientId,
+        clientId,
         type: dto.type || SubscriptionType.SESSIONS_BASED,
         totalSessions: dto.totalSessions,
-        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-        endDate: dto.endDate ? new Date(dto.endDate) : undefined,
+        startDate,
+        endDate,
         price: dto.price ?? 0,
         isPaid: dto.isPaid ?? false,
       },
@@ -42,9 +53,9 @@ export class SubscriptionsService {
     const where: Prisma.ClientSubscriptionWhereInput = { trainerId };
 
     if (query.clientId) {
-      where.clientId = query.clientId;
+      where.clientId = Number(query.clientId);
     }
-    if (query.status) {
+    if (query.status && Object.values(SubscriptionStatus).includes(query.status)) {
       where.status = query.status;
     }
 
@@ -73,7 +84,7 @@ export class SubscriptionsService {
     id: number,
     dto: UpdateSubscriptionDto,
   ): Promise<ClientSubscription> {
-    await this.findOne(trainerId, id);
+    const current = await this.findOne(trainerId, id);
 
     const data: Prisma.ClientSubscriptionUpdateInput = {};
 
@@ -83,6 +94,26 @@ export class SubscriptionsService {
     if (dto.price !== undefined) data.price = dto.price;
     if (dto.isPaid !== undefined) data.isPaid = dto.isPaid;
     if (dto.type !== undefined) data.type = dto.type;
+    if (dto.status !== undefined) data.status = dto.status;
+
+    const willBeActive =
+      dto.status === SubscriptionStatus.ACTIVE ||
+      (!dto.status && current.status === SubscriptionStatus.ACTIVE);
+    if (willBeActive) {
+      const targetType = dto.type || current.type;
+      const targetStartDate = dto.startDate
+        ? new Date(dto.startDate)
+        : (current.startDate ?? undefined);
+      const targetEndDate = dto.endDate ? new Date(dto.endDate) : (current.endDate ?? undefined);
+      await this.validateNoOverlappingActiveSubscription(
+        trainerId,
+        current.clientId,
+        targetType,
+        targetStartDate,
+        targetEndDate,
+        id,
+      );
+    }
 
     return this.prisma.clientSubscription.update({
       where: { id },
@@ -151,7 +182,7 @@ export class SubscriptionsService {
     return this.prisma.clientSubscription.findMany({
       where: {
         trainerId,
-        clientId,
+        clientId: Number(clientId),
         status: SubscriptionStatus.ACTIVE,
       },
       orderBy: { createdAt: 'desc' },
@@ -162,7 +193,18 @@ export class SubscriptionsService {
     trainerId: number,
     dto: CreateSubscriptionWithRecurringDto,
   ): Promise<{ subscription: ClientSubscription; sessionsCount: number }> {
-    await this.validateClientOwnership(trainerId, dto.clientId);
+    const clientId = Number(dto.clientId);
+    await this.validateClientOwnership(trainerId, clientId);
+
+    const startDate = new Date(dto.dateFrom);
+    const endDate = new Date(dto.dateTo);
+    await this.validateNoOverlappingActiveSubscription(
+      trainerId,
+      clientId,
+      SubscriptionType.DATE_RANGE,
+      startDate,
+      endDate,
+    );
 
     const dates = this.generateRecurringDates(dto.dateFrom, dto.dateTo, dto.daysOfWeek);
     if (dates.length === 0) {
@@ -173,10 +215,10 @@ export class SubscriptionsService {
       const subscription = await tx.clientSubscription.create({
         data: {
           trainerId,
-          clientId: dto.clientId,
+          clientId,
           type: SubscriptionType.DATE_RANGE,
-          startDate: new Date(dto.dateFrom),
-          endDate: new Date(dto.dateTo),
+          startDate,
+          endDate,
           totalSessions: dates.length,
           usedSessions: 0,
           price: dto.price ?? 0,
@@ -215,7 +257,7 @@ export class SubscriptionsService {
             subscriptionId: subscription.id,
             workoutTypes: dto.workoutTypes || [],
             participants: {
-              create: { clientId: dto.clientId },
+              create: { clientId },
             },
           },
         });
@@ -254,6 +296,50 @@ export class SubscriptionsService {
 
     if (!client || client.trainerId !== trainerId) {
       throw new NotFoundException('Клієнта не знайдено');
+    }
+  }
+
+  private async validateNoOverlappingActiveSubscription(
+    trainerId: number,
+    clientId: number,
+    type: SubscriptionType,
+    startDate?: Date,
+    endDate?: Date,
+    excludeSubscriptionId?: number,
+  ): Promise<void> {
+    const activeSubs =
+      (await this.prisma.clientSubscription.findMany({
+        where: {
+          trainerId,
+          clientId,
+          status: SubscriptionStatus.ACTIVE,
+          ...(excludeSubscriptionId ? { id: { not: excludeSubscriptionId } } : {}),
+        },
+      })) || [];
+
+    if (activeSubs.length === 0) {
+      return;
+    }
+
+    if (type === SubscriptionType.DATE_RANGE && startDate && endDate) {
+      for (const sub of activeSubs) {
+        if (sub.type === SubscriptionType.DATE_RANGE && sub.startDate && sub.endDate) {
+          const hasOverlap = startDate <= sub.endDate && endDate >= sub.startDate;
+          if (hasOverlap) {
+            throw new BadRequestException('У клієнта вже є активний абонемент на цей термін');
+          }
+        }
+      }
+    } else if (type === SubscriptionType.SESSIONS_BASED) {
+      const hasActiveSessionsSub = activeSubs.some(
+        (sub) =>
+          sub.type === SubscriptionType.SESSIONS_BASED &&
+          sub.totalSessions !== null &&
+          sub.usedSessions < sub.totalSessions,
+      );
+      if (hasActiveSessionsSub) {
+        throw new BadRequestException('У клієнта вже є активний абонемент по кількості занять');
+      }
     }
   }
 
