@@ -171,7 +171,8 @@ model WorkoutSession {
   status    SessionStatus @default(UPCOMING)
   isPaid    Boolean       @default(false) @map("is_paid")
   workoutTypes    String[]   @default([]) @map("workout_types")
-  maxParticipants Int?       @map("max_participants")
+  maxParticipants            Int?       @map("max_participants")
+  anonymousParticipantsCount Int        @default(0) @map("anonymous_participants_count")
 
   participants SessionParticipant[]
 

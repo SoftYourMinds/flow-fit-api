@@ -46,6 +46,7 @@ export class SessionsService {
         isPaid: dto.status === 'COMPLETED' ? true : dto.isPaid || false,
         workoutTypes: dto.workoutTypes || [],
         maxParticipants: dto.maxParticipants,
+        anonymousParticipantsCount: dto.anonymousParticipantsCount ?? 0,
       },
       include: {
         location: true,
@@ -100,6 +101,7 @@ export class SessionsService {
       status: dto.status,
       workoutTypes: dto.workoutTypes,
       maxParticipants: dto.maxParticipants,
+      anonymousParticipantsCount: dto.anonymousParticipantsCount,
     };
 
     if (dto.startTime) {

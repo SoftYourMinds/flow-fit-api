@@ -55,4 +55,10 @@ export class CreateSessionDto {
   @Min(1)
   @IsOptional()
   maxParticipants?: number;
+
+  @ApiProperty({ required: false, description: 'Number of anonymous/unnamed participants' })
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  anonymousParticipantsCount?: number;
 }
