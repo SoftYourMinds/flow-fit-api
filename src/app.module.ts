@@ -14,6 +14,7 @@ import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
 import { PortalModule } from './portal/portal.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { AppUpdatesModule } from './modules/app-updates/app-updates.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
     TelegramModule,
     PortalModule,
     SubscriptionsModule,
+    AppUpdatesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
