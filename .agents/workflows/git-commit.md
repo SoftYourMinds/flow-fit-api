@@ -1,5 +1,5 @@
 ---
-description: Analyzes current code changes and creates atomic, goal-oriented commits using the Conventional Commits format.
+description: Analyzes current code changes and creates atomic, goal-oriented commits using the Conventional Commits format with automated versioning and release notes.
 ---
 
 # Git Commit Workflow
@@ -28,8 +28,47 @@ Read the diffs carefully. Identify:
 
 - **What was the developer's goal?** (not what files changed)
 - **Are there logically independent changes?** (infra vs domain, feature vs tooling, etc.)
+- **Are there user-facing features (`feat`) or bugfixes (`fix`) that warrant a version bump?**
 
-### Step 2: Plan Atomic Commits
+---
+
+### Step 2: Version Bumping & "What's New" Automation
+
+If the changes contain new features (`feat`) or user-facing fixes (`fix`), the agent MUST automate the release process before finalizing commits:
+
+1. **Calculate the next SemVer version:**
+   - New feature / module: Bump **MINOR** (e.g. `0.2.0` → `0.3.0`).
+   - Bugfixes / optimizations only: Bump **PATCH** (e.g. `0.2.0` → `0.2.1`).
+   - Breaking change: Bump **MAJOR** (e.g. `1.0.0`).
+
+2. **Generate structured Release Notes in Ukrainian:**
+   - Formulate human-friendly changelog entries (with emojis and categories).
+   - Prepend the new release object to `APP_UPDATES_DATA` in `src/modules/app-updates/data/app-updates.data.ts`:
+     ```typescript
+     {
+       version: '<new-version>',
+       title: 'Оновлення FlowFit (v<new-version>)',
+       releaseDate: '<YYYY-MM-DD>',
+       badge: 'Новинка',
+       highlights: ['...', '...'],
+       groups: [
+         {
+           category: '🚀 <Категорія>',
+           items: ['...']
+         }
+       ]
+     }
+     ```
+
+3. **Synchronize version in config files:**
+   - `flow-fit-api/package.json` → `"version": "<new-version>"`
+   - `flow-fit-client/package.json` → `"version": "<new-version>"` (if accessible)
+   - `flow-fit-client/src/environments/environment.ts` → `appVersion: '<new-version>'`
+   - `flow-fit-client/src/environments/environment.prod.ts` → `appVersion: '<new-version>'`
+
+---
+
+### Step 3: Plan Atomic Commits
 
 Split changes into **logical units**, each representing a single completed goal. Apply these grouping rules:
 
@@ -38,6 +77,7 @@ Split changes into **logical units**, each representing a single completed goal.
 | **Infrastructure**   | New packages, module configuration, database schema     | `deps`, `prisma`, `config`    |
 | **Core/Shared**      | Base services, shared utilities, guards, interceptors   | `shared`, `auth`              |
 | **Domain consumers** | Feature services/controllers adopting changes           | `session`, `client`, `reports`|
+| **Release / Notes**  | Version bump and `app-updates.data.ts`                  | `release`                     |
 | **Tooling/Meta**     | Agent rules, workflows, configs, docs                   | `agents`, `docs`, `ci`        |
 
 **Rules:**
@@ -47,7 +87,9 @@ Split changes into **logical units**, each representing a single completed goal.
 - If 10+ files have the same 2-line mechanical change (e.g., removing an import), that's ONE commit — not 10.
 - Never mix functional changes with tooling/docs in the same commit.
 
-### Step 3: Present the Commit Plan
+---
+
+### Step 4: Present the Commit Plan
 
 Show the user a table:
 
@@ -57,10 +99,13 @@ Show the user a table:
 | 1 | package.json, prisma/schema.prisma | feat(prisma): add payment status field to session |
 | 2 | src/modules/shared/* | refactor(shared): introduce tenant isolation helper |
 | 3 | src/modules/session/* | feat(session): enforce tenant filter across session queries |
-| 4 | .agents/rules/*.md | chore(agents): update code style rules |
+| 4 | src/modules/app-updates/data/*, package.json | chore(release): bump version to v0.3.0 and add release notes |
+| 5 | .agents/rules/*.md | chore(agents): update code style rules |
 ```
 
-### Step 4: Execute Commits One by One
+---
+
+### Step 5: Execute Commits One by One
 
 For each commit in the plan:
 
@@ -69,6 +114,13 @@ For each commit in the plan:
 3. Show the commit message and **wait for user confirmation**
 4. Run `git commit -m "message"`
 5. Proceed to the next commit
+
+---
+
+### Step 6: Post-Release Broadcast Prompt
+
+If a new version was released, ask the user:
+> *"Бажаєте надіслати сповіщення про реліз v<new-version> усім тренерам через Telegram-бота (`POST /app-updates/broadcast-telegram`)?"*
 
 ---
 
@@ -96,7 +148,7 @@ For each commit in the plan:
 
 ### Scope
 
-- Use the **primary domain** affected: `auth`, `user`, `client`, `session`, `location`, `reports`, `scheduler`, `telegram`, `prisma`, `agents`
+- Use the **primary domain** affected: `auth`, `user`, `client`, `session`, `location`, `reports`, `scheduler`, `telegram`, `prisma`, `release`, `agents`
 - **Omit scope** when the change spans 3+ unrelated modules (e.g., global rename or cross-cutting cleanup)
 - Never use generic scopes like `code`, `files`, `update`
 
@@ -114,13 +166,3 @@ Before finalizing, verify the description against these anti-patterns:
 ### The "Changelog Test"
 
 Read the commit message as if it were a line in a CHANGELOG.md. Would a teammate understand the impact? If not — rewrite it.
-
----
-
-## Body (Optional but Recommended for Non-Trivial Changes)
-
-Add a body when the commit:
-
-- Removes a dependency or pattern used across many files
-- Introduces a new architectural pattern
-- Has non-obvious rationale
