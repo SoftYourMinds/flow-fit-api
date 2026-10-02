@@ -56,9 +56,13 @@ describe('SubscriptionsService', () => {
         findFirst: jest.fn(),
         findMany: jest.fn(),
         create: jest.fn(),
+        createManyAndReturn: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
         count: jest.fn(),
+      },
+      sessionParticipant: {
+        createMany: jest.fn(),
       },
       $transaction: jest.fn((callback: (tx: any) => any) => callback(prisma)),
     };
@@ -215,8 +219,9 @@ describe('SubscriptionsService', () => {
     it('should create subscription and recurring sessions in transaction', async () => {
       prisma.client.findUnique.mockResolvedValue({ id: mockClientId, trainerId: mockTrainerId });
       prisma.clientSubscription.create.mockResolvedValue(mockSubscription);
-      prisma.workoutSession.findFirst.mockResolvedValue(null);
-      prisma.workoutSession.create.mockResolvedValue(mockSession);
+      prisma.workoutSession.findMany.mockResolvedValue([]);
+      prisma.workoutSession.createManyAndReturn.mockResolvedValue([{ id: 101 }, { id: 102 }]);
+      prisma.sessionParticipant.createMany.mockResolvedValue({ count: 2 });
 
       const result = await service.createWithRecurring(mockTrainerId, {
         clientId: mockClientId,
@@ -233,7 +238,8 @@ describe('SubscriptionsService', () => {
       expect(result.subscription).toEqual(mockSubscription);
       expect(result.sessionsCount).toBeGreaterThan(0);
       expect(prisma.clientSubscription.create).toHaveBeenCalled();
-      expect(prisma.workoutSession.create).toHaveBeenCalled();
+      expect(prisma.workoutSession.createManyAndReturn).toHaveBeenCalled();
+      expect(prisma.sessionParticipant.createMany).toHaveBeenCalled();
     });
   });
 

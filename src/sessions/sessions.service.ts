@@ -252,33 +252,42 @@ export class SessionsService {
     dto: CreateRecurringSessionsDto,
   ): Promise<{ date: string; startTime: string; endTime: string; hasConflict: boolean }[]> {
     const dates = generateRecurringCalendarDates(dto.dateFrom, dto.dateTo, dto.daysOfWeek);
-    const previews = [];
-
-    for (const dateItem of dates) {
-      const { startTime, endTime } = buildUtcSessionTimes(
-        dateItem,
-        dto.startTime,
-        dto.endTime,
-        dto.timezoneOffset,
-      );
-
-      const conflict = await this.prisma.workoutSession.findFirst({
-        where: {
-          trainerId,
-          startTime: { lt: endTime },
-          endTime: { gt: startTime },
-        },
-      });
-
-      previews.push({
-        date: dateItem.dateStr,
-        startTime: startTime.toISOString(),
-        endTime: endTime.toISOString(),
-        hasConflict: !!conflict,
-      });
+    if (dates.length === 0) {
+      return [];
     }
 
-    return previews;
+    const candidateSlots = dates.map((dateItem) => ({
+      dateStr: dateItem.dateStr,
+      ...buildUtcSessionTimes(dateItem, dto.startTime, dto.endTime, dto.timezoneOffset),
+    }));
+
+    const rangeStart = new Date(Math.min(...candidateSlots.map((s) => s.startTime.getTime())));
+    const rangeEnd = new Date(Math.max(...candidateSlots.map((s) => s.endTime.getTime())));
+
+    const existingSessions = await this.prisma.workoutSession.findMany({
+      where: {
+        trainerId,
+        startTime: { lt: rangeEnd },
+        endTime: { gt: rangeStart },
+      },
+      select: {
+        startTime: true,
+        endTime: true,
+      },
+    });
+
+    return candidateSlots.map((slot) => {
+      const hasConflict = existingSessions.some(
+        (existing) => existing.startTime < slot.endTime && existing.endTime > slot.startTime,
+      );
+
+      return {
+        date: slot.dateStr,
+        startTime: slot.startTime.toISOString(),
+        endTime: slot.endTime.toISOString(),
+        hasConflict,
+      };
+    });
   }
 
   async createRecurringSessions(
@@ -286,55 +295,67 @@ export class SessionsService {
     dto: CreateRecurringSessionsDto,
   ): Promise<WorkoutSession[]> {
     const dates = generateRecurringCalendarDates(dto.dateFrom, dto.dateTo, dto.daysOfWeek);
-    const createdSessions: WorkoutSession[] = [];
+    if (dates.length === 0) {
+      return [];
+    }
 
-    for (const dateItem of dates) {
-      const { startTime, endTime } = buildUtcSessionTimes(
-        dateItem,
-        dto.startTime,
-        dto.endTime,
-        dto.timezoneOffset,
-      );
+    const candidateSlots = dates.map((dateItem) =>
+      buildUtcSessionTimes(dateItem, dto.startTime, dto.endTime, dto.timezoneOffset),
+    );
 
-      const hasConflict = await this.prisma.workoutSession.findFirst({
-        where: {
-          trainerId,
-          startTime: { lt: endTime },
-          endTime: { gt: startTime },
-        },
-      });
+    const validSlots = await this.filterNonConflictingSlots(trainerId, candidateSlots);
+    if (validSlots.length === 0) {
+      return [];
+    }
 
-      if (hasConflict) continue;
-
-      const session = await this.prisma.workoutSession.create({
-        data: {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const sessionsData = validSlots.map((slot) => ({
           trainerId,
           locationId: dto.locationId,
-          type: 'INDIVIDUAL',
-          startTime,
-          endTime,
+          type: 'INDIVIDUAL' as const,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
           price: dto.price ?? 0,
-          status: 'UPCOMING',
+          status: 'UPCOMING' as const,
           workoutTypes: dto.workoutTypes || [],
           subscriptionId: dto.subscriptionId,
-          participants: {
-            create: { clientId: dto.clientId },
+        }));
+
+        const createdSessions = await tx.workoutSession.createManyAndReturn({
+          data: sessionsData,
+          select: { id: true },
+        });
+
+        const participantsData = createdSessions.map((session) => ({
+          sessionId: session.id,
+          clientId: dto.clientId,
+        }));
+
+        await tx.sessionParticipant.createMany({
+          data: participantsData,
+        });
+
+        if (dto.subscriptionId) {
+          await this.subscriptionsService.recalculateSubscriptionUsage(
+            trainerId,
+            dto.subscriptionId,
+            tx,
+          );
+        }
+
+        const sessionIds = createdSessions.map((s) => s.id);
+        return tx.workoutSession.findMany({
+          where: { id: { in: sessionIds } },
+          include: {
+            location: true,
+            participants: { include: { client: true } },
           },
-        },
-        include: {
-          location: true,
-          participants: { include: { client: true } },
-        },
-      });
-
-      createdSessions.push(session);
-    }
-
-    if (dto.subscriptionId && createdSessions.length > 0) {
-      await this.subscriptionsService.recalculateSubscriptionUsage(trainerId, dto.subscriptionId);
-    }
-
-    return createdSessions;
+          orderBy: { startTime: 'asc' },
+        });
+      },
+      { maxWait: 10000, timeout: 30000 },
+    );
   }
 
   // ─── Private Helpers ────────────────────────────────────────────
@@ -401,5 +422,47 @@ export class SessionsService {
     if (conflictingSession) {
       throw new ConflictException('На цей час вже створено інше тренування');
     }
+  }
+
+  private async filterNonConflictingSlots(
+    trainerId: number,
+    candidateSlots: { startTime: Date; endTime: Date }[],
+  ): Promise<{ startTime: Date; endTime: Date }[]> {
+    if (candidateSlots.length === 0) {
+      return [];
+    }
+
+    const rangeStart = new Date(Math.min(...candidateSlots.map((s) => s.startTime.getTime())));
+    const rangeEnd = new Date(Math.max(...candidateSlots.map((s) => s.endTime.getTime())));
+
+    const existingSessions = await this.prisma.workoutSession.findMany({
+      where: {
+        trainerId,
+        startTime: { lt: rangeEnd },
+        endTime: { gt: rangeStart },
+      },
+      select: {
+        startTime: true,
+        endTime: true,
+      },
+    });
+
+    const validSlots: { startTime: Date; endTime: Date }[] = [];
+    for (const slot of candidateSlots) {
+      const hasDbConflict = existingSessions.some(
+        (existing) => existing.startTime < slot.endTime && existing.endTime > slot.startTime,
+      );
+      const hasBatchConflict = validSlots.some(
+        (prev) => prev.startTime < slot.endTime && prev.endTime > slot.startTime,
+      );
+
+      if (hasDbConflict || hasBatchConflict) {
+        continue;
+      }
+
+      validSlots.push(slot);
+    }
+
+    return validSlots;
   }
 }

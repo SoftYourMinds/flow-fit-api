@@ -40,8 +40,12 @@ describe('SessionsService', () => {
         findFirst: jest.fn(),
         findMany: jest.fn(),
         create: jest.fn(),
+        createManyAndReturn: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
+      },
+      sessionParticipant: {
+        createMany: jest.fn(),
       },
       $transaction: jest.fn((callback: (tx: any) => any) => callback(prisma)),
     };
@@ -109,6 +113,59 @@ describe('SessionsService', () => {
       });
 
       await expect(service.remove(mockTrainerId, mockSessionId)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('previewRecurringSessions', () => {
+    it('should preview recurring dates and identify conflicts', async () => {
+      prisma.workoutSession.findMany.mockResolvedValue([
+        {
+          startTime: new Date('2026-10-02T07:00:00.000Z'),
+          endTime: new Date('2026-10-02T08:00:00.000Z'),
+        },
+      ]);
+
+      const result = await service.previewRecurringSessions(mockTrainerId, {
+        clientId: 1,
+        locationId: 1,
+        daysOfWeek: [1, 5],
+        startTime: '10:00',
+        endTime: '11:00',
+        dateFrom: '2026-10-01',
+        dateTo: '2026-10-07',
+        timezoneOffset: -180,
+      });
+
+      expect(prisma.workoutSession.findMany).toHaveBeenCalled();
+      expect(result.length).toBeGreaterThan(0);
+      expect(result.some((r) => r.hasConflict)).toBe(true);
+    });
+  });
+
+  describe('createRecurringSessions', () => {
+    it('should batch create sessions and participants in transaction', async () => {
+      prisma.workoutSession.findMany
+        .mockResolvedValueOnce([]) // for conflict checking
+        .mockResolvedValueOnce([mockSessionWithoutSub]); // for return query
+
+      prisma.workoutSession.createManyAndReturn.mockResolvedValue([{ id: 101 }]);
+      prisma.sessionParticipant.createMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.createRecurringSessions(mockTrainerId, {
+        clientId: 1,
+        locationId: 1,
+        daysOfWeek: [1, 5],
+        startTime: '10:00',
+        endTime: '11:00',
+        dateFrom: '2026-10-01',
+        dateTo: '2026-10-07',
+        timezoneOffset: -180,
+      });
+
+      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(prisma.workoutSession.createManyAndReturn).toHaveBeenCalled();
+      expect(prisma.sessionParticipant.createMany).toHaveBeenCalled();
+      expect(result).toEqual([mockSessionWithoutSub]);
     });
   });
 });

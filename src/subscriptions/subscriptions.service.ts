@@ -314,18 +314,12 @@ export class SubscriptionsService implements OnApplicationBootstrap {
       throw new BadRequestException('У вибраному діапазоні дат не знайдено відповідних днів тижня');
     }
 
-    const { startTime: startDate } = buildUtcSessionTimes(
-      dates[0],
-      dto.startTime,
-      dto.endTime,
-      dto.timezoneOffset,
+    const candidateSlots = dates.map((dateItem) =>
+      buildUtcSessionTimes(dateItem, dto.startTime, dto.endTime, dto.timezoneOffset),
     );
-    const { endTime: endDate } = buildUtcSessionTimes(
-      dates[dates.length - 1],
-      dto.startTime,
-      dto.endTime,
-      dto.timezoneOffset,
-    );
+
+    const startDate = candidateSlots[0].startTime;
+    const endDate = candidateSlots[candidateSlots.length - 1].endTime;
 
     await this.validateNoOverlappingActiveSubscription(
       trainerId,
@@ -335,66 +329,59 @@ export class SubscriptionsService implements OnApplicationBootstrap {
       endDate,
     );
 
-    return this.prisma.$transaction(async (tx) => {
-      const subscription = await tx.clientSubscription.create({
-        data: {
-          trainerId,
-          clientId,
-          type: SubscriptionType.DATE_RANGE,
-          startDate,
-          endDate,
-          totalSessions: dates.length,
-          usedSessions: 0,
-          price: dto.price ?? 0,
-          isPaid: dto.isPaid ?? false,
-          status: SubscriptionStatus.ACTIVE,
-        },
-        include: { client: true },
-      });
+    const validSlots = await this.filterNonConflictingSlots(trainerId, candidateSlots);
 
-      let sessionsCreated = 0;
-      for (const dateItem of dates) {
-        const { startTime, endTime } = buildUtcSessionTimes(
-          dateItem,
-          dto.startTime,
-          dto.endTime,
-          dto.timezoneOffset,
-        );
-
-        const hasConflict = await tx.workoutSession.findFirst({
-          where: {
-            trainerId,
-            startTime: { lt: endTime },
-            endTime: { gt: startTime },
-          },
-        });
-
-        if (hasConflict) {
-          continue;
-        }
-
-        await tx.workoutSession.create({
+    return this.prisma.$transaction(
+      async (tx) => {
+        const subscription = await tx.clientSubscription.create({
           data: {
             trainerId,
+            clientId,
+            type: SubscriptionType.DATE_RANGE,
+            startDate,
+            endDate,
+            totalSessions: dates.length,
+            usedSessions: validSlots.length,
+            price: dto.price ?? 0,
+            isPaid: dto.isPaid ?? false,
+            status: SubscriptionStatus.ACTIVE,
+          },
+          include: { client: true },
+        });
+
+        if (validSlots.length > 0) {
+          const sessionsData = validSlots.map((slot) => ({
+            trainerId,
             locationId: dto.locationId,
-            type: 'INDIVIDUAL',
-            startTime,
-            endTime,
+            type: 'INDIVIDUAL' as const,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
             price: 0,
-            status: 'UPCOMING',
+            status: 'UPCOMING' as const,
             isPaid: true,
             subscriptionId: subscription.id,
             workoutTypes: dto.workoutTypes || [],
-            participants: {
-              create: { clientId },
-            },
-          },
-        });
-        sessionsCreated++;
-      }
+          }));
 
-      return { subscription, sessionsCount: sessionsCreated };
-    });
+          const createdSessions = await tx.workoutSession.createManyAndReturn({
+            data: sessionsData,
+            select: { id: true },
+          });
+
+          const participantsData = createdSessions.map((session) => ({
+            sessionId: session.id,
+            clientId,
+          }));
+
+          await tx.sessionParticipant.createMany({
+            data: participantsData,
+          });
+        }
+
+        return { subscription, sessionsCount: validSlots.length };
+      },
+      { maxWait: 10000, timeout: 30000 },
+    );
   }
 
   async getSubscriptionSessions(
@@ -532,5 +519,47 @@ export class SubscriptionsService implements OnApplicationBootstrap {
     }
 
     return subscription.status;
+  }
+
+  private async filterNonConflictingSlots(
+    trainerId: number,
+    candidateSlots: { startTime: Date; endTime: Date }[],
+  ): Promise<{ startTime: Date; endTime: Date }[]> {
+    if (candidateSlots.length === 0) {
+      return [];
+    }
+
+    const rangeStart = new Date(Math.min(...candidateSlots.map((s) => s.startTime.getTime())));
+    const rangeEnd = new Date(Math.max(...candidateSlots.map((s) => s.endTime.getTime())));
+
+    const existingSessions = await this.prisma.workoutSession.findMany({
+      where: {
+        trainerId,
+        startTime: { lt: rangeEnd },
+        endTime: { gt: rangeStart },
+      },
+      select: {
+        startTime: true,
+        endTime: true,
+      },
+    });
+
+    const validSlots: { startTime: Date; endTime: Date }[] = [];
+    for (const slot of candidateSlots) {
+      const hasDbConflict = existingSessions.some(
+        (existing) => existing.startTime < slot.endTime && existing.endTime > slot.startTime,
+      );
+      const hasBatchConflict = validSlots.some(
+        (prev) => prev.startTime < slot.endTime && prev.endTime > slot.startTime,
+      );
+
+      if (hasDbConflict || hasBatchConflict) {
+        continue;
+      }
+
+      validSlots.push(slot);
+    }
+
+    return validSlots;
   }
 }
