@@ -1,6 +1,5 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Headers, Post, Query, UnauthorizedException } from '@nestjs/common';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AppUpdatesService, BroadcastResult } from './app-updates.service';
 import { AppReleaseUpdate } from './data/app-updates.data';
 import { BroadcastUpdateDto } from './dto/broadcast-update.dto';
@@ -27,10 +26,37 @@ export class AppUpdatesController {
   }
 
   @Post('broadcast-telegram')
-  @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Broadcast release update to all trainers in Telegram' })
+  @ApiQuery({
+    name: 'secret',
+    required: false,
+    description: 'Secret token or authorization header',
+  })
   @ApiResponse({ status: 200, description: 'Broadcast delivery result' })
-  broadcastTelegram(@Body() dto: BroadcastUpdateDto): Promise<BroadcastResult> {
-    return this.appUpdatesService.broadcastTelegramUpdate(dto.version);
+  async broadcastTelegram(
+    @Body() dto: BroadcastUpdateDto,
+    @Query('secret') querySecret?: string,
+    @Headers('x-cron-secret') headerSecret?: string,
+    @Headers('authorization') authHeader?: string,
+  ): Promise<BroadcastResult> {
+    this.validateAccess(querySecret, headerSecret, authHeader);
+    return this.appUpdatesService.broadcastTelegramUpdate(dto?.version);
+  }
+
+  // ─── Private Helpers ────────────────────────────────────────────
+
+  private validateAccess(querySecret?: string, headerSecret?: string, authHeader?: string): void {
+    const expectedSecret = process.env.CRON_SECRET || 'flowfit-cron-secret-key';
+    const providedSecret = querySecret || headerSecret;
+
+    if (providedSecret === expectedSecret) {
+      return;
+    }
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return;
+    }
+
+    throw new UnauthorizedException('Необхідна авторизація або валідний секретний ключ');
   }
 }
