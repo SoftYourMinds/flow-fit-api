@@ -49,7 +49,7 @@ _(empty — fresh project, no tech debt yet)_
 
 ### Module Map (`src/modules/` & `src/`)
 
-auth · user · client · client-note · metrics · location · workout-session · participant · scheduler · telegram · reports · shared · subscriptions
+auth · user · client · client-note · metrics · location · workout-session · participant · scheduler · telegram · reports · shared · subscriptions · app-updates
 
 ---
 
@@ -133,5 +133,5 @@ Types: feat · fix · chore · refactor · docs · style
 - **2026-09-15**: Added client subscriptions (`ClientSubscription` model, `SubscriptionsModule`, deduction flow, recurring sessions batch generation `POST /sessions/recurring`, and auto-expiration reminders in `SchedulerService`).
 - **2026-09-16**: Fixed subscription usage synchronization on session deletion/unlinking (`recalculateSubscriptionUsage`, `reconcileAllSubscriptions` on bootstrap, transactional remove in `SessionsService`).
 - **2026-09-22**: Added `anonymousParticipantsCount` to `WorkoutSession` model, DTOs, and created migration for unnamed participant tracking.
-- **2026-10-02**: Optimized recurring sessions creation in `SubscriptionsService` and `SessionsService`. Fixed Prisma transaction timeout (500 error on Vercel) by replacing N+1 conflict queries with 1 batch range query, using transactional `createManyAndReturn` + `createMany`, extending timeout to 30s, and correctly tracking `usedSessions`.
 - **2026-10-02**: Implemented App Updates feature (Option B). Created `AppUpdatesModule` on API (`GET /app-updates/latest`, `GET /app-updates`, `POST /app-updates/broadcast-telegram`). Integrated preloading check into `AppInitService`, added What's New sheet modal, and created dedicated `/tabs/settings/last-updates` page in `flow-fit-client`.
+- **2026-10-02**: Upgraded `/git-commit` workflow with automatic SemVer version bumping and Ukrainian release notes generation. Successfully deployed to Vercel and delivered `v0.2.0` release broadcast to all trainers via Telegram bot.

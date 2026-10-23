@@ -1,20 +1,31 @@
 ## Last Session Summary
 
-**Date:** 2026-09-22
-**Session focus:** Workout Session Anonymous Participants Count & Migration (Variant B)
+**Date:** 2026-10-02 (Local: 2026-10-03)
+**Session focus:** App Updates & Versioning System (API + Client + Telegram Broadcast)
 
 ### ✅ Accomplished
 
-- **Prisma Schema & Database Migration:** Added `anonymousParticipantsCount Int @default(0) @map("anonymous_participants_count")` to `WorkoutSession` model in `prisma/schema.prisma`. Created and applied migration `20260922212930_add_anonymous_participants_count`.
-- **DTOs:** Added `anonymousParticipantsCount?: number` to `CreateSessionDto` (and inherited in `UpdateSessionDto`) with validation (`@IsInt()`, `@Min(0)`, `@IsOptional()`).
-- **Sessions Service:** Updated `SessionsService.create()` and `SessionsService.update()` to persist `anonymousParticipantsCount`.
-- **Verification:** Verified clean compilation with `npm run build` and 0 ESLint errors with `npm run lint`.
+- **Backend (`flow-fit-api`):**
+  - Created `AppUpdatesModule` (`AppUpdatesController`, `AppUpdatesService`, `app-updates.data.ts`).
+  - Added public endpoints `GET /app-updates/latest` and `GET /app-updates`.
+  - Added automated Telegram broadcast endpoint `POST /app-updates/broadcast-telegram` supporting both JWT and system `CRON_SECRET`.
+  - Added unit test suite `app-updates.service.spec.ts` (100% pass).
+  - Deployed to Vercel production and triggered broadcast: successfully delivered `v0.2.0` release notes to all connected trainers in Telegram (`recipientsCount: 2`).
+- **Frontend (`flow-fit-client`):**
+  - Added `appVersion: '0.2.0'` to environment configurations.
+  - Created `AppUpdatesService` with background preloading during initial splash screen (`AppInitService`).
+  - Implemented `WhatsNewModalComponent` (sheet modal popping up on first load after new version).
+  - Implemented dedicated `/tabs/settings/last-updates` page (`LastUpdatesComponent`) and added button + version footer in `SettingsComponent`.
+  - Verified with `npm run build` (clean compilation).
+- **Workflow & Automation:**
+  - Upgraded `/git-commit` workflow with automatic SemVer calculation, Ukrainian release notes generation in `app-updates.data.ts`, config synchronization, and post-release Telegram broadcast prompt.
+  - Committed and pushed all changes with conventional commits.
 
 ### ⚠️ Pending / Known Issues
 
-- None.
+- None. Both API and Client are built, committed, deployed, and tested end-to-end.
 
 ### 🚀 Immediate Next Steps
 
-1. Commit changes using Conventional Commits format.
-2. Push commits to remote repository.
+1. Continue feature roadmap or client testing.
+2. In subsequent feature commits, invoke `/git-commit` to utilize the new automated versioning and release notes pipeline.
