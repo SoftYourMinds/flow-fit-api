@@ -1,6 +1,8 @@
 # FlowFit Memory
 
 ## Current State
+- API version updated to `v0.3.0`.
+- Release notes endpoint (`/app-updates` and `/app-updates/latest`) serves changelog including `v0.3.0`.
 - UI/UX modernization is fully implemented on the client-side with Nude & Terracotta theme (#C88A72).
 - API includes `updateNote` method in `ClientsService` for client note edits.
 - Scheduler supports Day, Week, and Month views.
@@ -9,6 +11,8 @@
 - API is configured for serverless deployment on Vercel (`api/serverless.ts`), with file logging disabled in production environments.
 
 ## Recent Changes
+- Updated API version to `v0.3.0` and populated `app-updates.data.ts` with release notes for the new theming engine (presets, custom color builder, dark background tones).
+- Fixed TS1272 isolatedModules type import for `AppReleaseUpdate` in `app-updates.controller.ts`.
 - Added `workoutTypes` string array field to `WorkoutSession` via Prisma migration to support filtering and categorizing workouts (e.g. stretching, yoga).
 - Updated `reports.controller.ts` and `reports.service.ts` to support filtering session statistics by `workoutTypes`.
 - Fixed `sessions.service.ts` to actively save `workoutTypes` when creating or duplicating sessions.

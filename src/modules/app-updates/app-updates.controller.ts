@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Headers, Post, Query, UnauthorizedException } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AppUpdatesService, BroadcastResult } from './app-updates.service';
-import { AppReleaseUpdate } from './data/app-updates.data';
+import type { AppReleaseUpdate } from './data/app-updates.data';
 import { BroadcastUpdateDto } from './dto/broadcast-update.dto';
 
 @ApiTags('App Updates')
