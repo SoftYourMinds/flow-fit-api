@@ -1,7 +1,8 @@
 # FlowFit Memory
 
 ## Current State
-- API version is `v0.3.0`.
+- API version is `v0.4.0`.
+- Release notes endpoint (`/app-updates` and `/app-updates/latest`) serves changelog including `v0.4.0` (PWA Web Push, Critical dual-channel notifications).
 - Web Push & Dual-Channel Notifications (PWA Web Push + Telegram for critical workouts) fully implemented.
 - Database contains `push_subscriptions` table and `WorkoutSession` notification columns (`enable_notification`, `reminder_mode`, `is_critical`, `reminder_sent_at`).
 - Release notes endpoint (`/app-updates` and `/app-updates/latest`) serves changelog including `v0.3.0`.

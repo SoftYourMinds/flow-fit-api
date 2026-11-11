@@ -24,7 +24,10 @@
 - **DTOs & Services:**
   - Updated `CreateSessionDto` and `UpdateSessionDto` with `enableNotification`, `reminderMode`, `isCritical`.
   - Handled these fields in `SessionsService` `create` and `update`.
-- **Verification:**
+- **Verification & Versioning:**
+  - Bumped version to `0.4.0` in `package.json`.
+  - Added `v0.4.0` release notes to `APP_UPDATES_DATA`.
+  - Updated `app-updates.service.spec.ts` (all 5 tests passed).
   - Generated Prisma Client (`prisma generate`).
   - Verified compilation via `nest build` (exit code 0).
 
