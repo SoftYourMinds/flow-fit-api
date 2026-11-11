@@ -2,6 +2,13 @@
 
 This document tracks important architectural, design, and business logic decisions made during the development of the FlowFit backend API.
 
+## 2026-11-11: Defensive `reminderMode` String Coercion in Sessions Service & DTO
+- **Decision:** Normalized `reminderMode` to string inside `SessionsService` (`normalizeReminderMode`) and added `@Transform` in `CreateSessionDto`, rather than enabling `ValidationPipe({ whitelist: true })` in `api/serverless.ts`.
+- **Rationale:** Vercel runtime logs revealed `POST /sessions` and `PUT /sessions/:id` threw 500 errors (`Argument reminderMode: Expected String, provided Int`) when clients sent numeric offsets (`60`, `120`) because `api/serverless.ts` omits `ValidationPipe`. Enabling `ValidationPipe({ whitelist: true })` globally in `api/serverless.ts` would break `AuthController` (`LoginDto` lacks `class-validator` decorators) and raw Prisma-typed controllers, so defensive coercion in `SessionsService` + DTO `@Transform` handles both local (`main.ts`) and serverless (`api/serverless.ts`) runtimes safely, including cached older PWA clients.
+- **Implementation:**
+  - `src/sessions/sessions.service.ts`: Added `normalizeReminderMode()` used by `create()` and `update()`, and reset `reminderSentAt` when `reminderMode` changes.
+  - `src/sessions/dto/create-session.dto.ts`: Added `@Transform` to safely stringify `number | string` values.
+
 ## 2026-11-11: Vercel Serverless Compatibility (Prisma Binary Targets & CommonJS `web-push`)
 - **Decision:** Pinned `web-push` to `^3.6.7` (CommonJS), added explicit `binaryTargets = ["native", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x"]` in `prisma/schema.prisma`, and awaited Express response finish in `api/serverless.ts`.
 - **Rationale:** `web-push@4.0.0` converted to pure ESM (`"type": "module"`), throwing `ERR_REQUIRE_ESM` when compiled to CommonJS or invoked in Node 18/20 serverless environments on Vercel. Furthermore, Prisma requires explicit RHEL binary targets when bundled by `@vercel/node` (`@vercel/ncc`), and async serverless handlers must await the HTTP `finish`/`close` lifecycle event before returning so Vercel does not freeze the execution context mid-request.

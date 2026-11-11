@@ -1,8 +1,8 @@
 # FlowFit Memory
 
 ## Current State
-- API version is `v0.4.0`.
-- Release notes endpoint (`/app-updates` and `/app-updates/latest`) serves changelog including `v0.4.0` (PWA Web Push, Critical dual-channel notifications).
+- API version is `v0.4.1`.
+- Release notes endpoint (`/app-updates` and `/app-updates/latest`) serves changelog including `v0.4.1` (reminderMode string normalization fix) and `v0.4.0` (PWA Web Push, Critical dual-channel notifications).
 - Web Push & Dual-Channel Notifications (PWA Web Push + Telegram for critical workouts) fully implemented.
 - Database contains `push_subscriptions` table and `WorkoutSession` notification columns (`enable_notification`, `reminder_mode`, `is_critical`, `reminder_sent_at`).
 - Release notes endpoint (`/app-updates` and `/app-updates/latest`) serves changelog including `v0.3.0`.
@@ -14,6 +14,10 @@
 - API is configured for serverless deployment on Vercel (`api/serverless.ts`), with file logging disabled in production environments.
 
 ## Recent Changes
+- Fixed 500 Internal Server Error on `POST /sessions` and `PUT /sessions/:id` when `reminderMode` was sent as an integer (e.g., `60`, `120`) without `ValidationPipe` in Vercel serverless runtime:
+  - Added `normalizeReminderMode()` in `SessionsService` (`create()` & `update()`) to safely coerce numeric/string values to string and reset `reminderSentAt` when `reminderMode` changes.
+  - Added `@Transform` in `CreateSessionDto` to coerce numeric/string `reminderMode` values before `@IsString()` validation.
+  - Added unit tests in `sessions.service.spec.ts` and bumped API version to `v0.4.1` with release notes in `app-updates.data.ts`.
 - Implemented Web Push and Dual-Channel Notification System for PWA:
   - Added `enable_notification`, `reminder_mode`, `is_critical`, and `reminder_sent_at` to `WorkoutSession` in Prisma schema.
   - Added `PushSubscription` model for storing user web push browser credentials.
