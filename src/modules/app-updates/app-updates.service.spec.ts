@@ -32,10 +32,10 @@ describe('AppUpdatesService', () => {
   });
 
   describe('getLatestUpdate', () => {
-    it('should return the latest version (0.4.0)', () => {
+    it('should return the latest version (0.4.1)', () => {
       const update = service.getLatestUpdate();
       expect(update).toBeDefined();
-      expect(update.version).toBe('0.4.0');
+      expect(update.version).toBe('0.4.1');
     });
   });
 

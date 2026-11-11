@@ -14,10 +14,29 @@ export interface AppReleaseUpdate {
 
 export const APP_UPDATES_DATA: AppReleaseUpdate[] = [
   {
+    version: '0.4.1',
+    title: 'Оновлення FlowFit (v0.4.1)',
+    releaseDate: '2026-11-11',
+    badge: 'Новинка',
+    highlights: [
+      'Виправлено збереження тренувань із нагадуваннями',
+      'Коректна передача часу нагадування для Web Push та Telegram',
+    ],
+    groups: [
+      {
+        category: '🛠 Виправлення та стабільність',
+        items: [
+          'Усунено помилку сервера (500 Internal Server Error) при створенні та редагуванні тренувань із обраним часом нагадування (15/30/60/120/180 хв).',
+          'Синхронізовано формат параметра часу нагадування між клієнтом та API для коректного відображення у формі редагування.',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.4.0',
     title: 'Оновлення FlowFit (v0.4.0)',
     releaseDate: '2026-11-11',
-    badge: 'Новинка',
+    badge: 'Попереднє',
     highlights: [
       'Web Push сповіщення у PWA',
       'Критичні сповіщення з дублюванням у Telegram',
