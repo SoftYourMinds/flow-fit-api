@@ -3,6 +3,13 @@ import * as webPush from 'web-push';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PushSubscriptionDto } from './dto/push-subscription.dto';
 
+type WebPushClient = typeof webPush & { default?: typeof webPush };
+
+function getWebPushClient(): typeof webPush {
+  const mod = webPush as WebPushClient;
+  return mod.default ?? mod;
+}
+
 @Injectable()
 export class WebPushService {
   private readonly logger = new Logger(WebPushService.name);
@@ -16,7 +23,7 @@ export class WebPushService {
     const subject = process.env.VAPID_SUBJECT || 'mailto:admin@flowfit.app';
 
     try {
-      const wp = (webPush as any).default || webPush;
+      const wp = getWebPushClient();
       if (typeof wp.setVapidDetails === 'function') {
         wp.setVapidDetails(subject, publicKey, privateKey);
         this.logger.log('VAPID details configured successfully.');
@@ -98,7 +105,7 @@ export class WebPushService {
       };
 
       try {
-        const wp = (webPush as any).default || webPush;
+        const wp = getWebPushClient();
         await wp.sendNotification(pushSubscription, notificationPayload);
         successCount++;
       } catch (err: unknown) {
