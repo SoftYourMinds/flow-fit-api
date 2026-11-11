@@ -25,18 +25,28 @@ export default async (req: any, res: any) => {
     if (!cachedServer) {
       cachedServer = await bootstrap(server);
     }
-    return server(req, res);
+    return new Promise<void>((resolve, reject) => {
+      res.on('finish', resolve);
+      res.on('close', resolve);
+      res.on('error', reject);
+      server(req, res, (err: any) => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
   } catch (err: any) {
     console.error('SERVERLESS BOOTSTRAP ERROR:', err);
-    res.statusCode = 500;
-    res.setHeader('Content-Type', 'application/json');
-    return res.end(
-      JSON.stringify({
-        error: 'SERVERLESS_BOOTSTRAP_ERROR',
-        name: err?.name,
-        message: err?.message || String(err),
-        stack: err?.stack,
-      }),
-    );
+    if (!res.headersSent) {
+      res.statusCode = 500;
+      res.setHeader('Content-Type', 'application/json');
+      return res.end(
+        JSON.stringify({
+          error: 'SERVERLESS_BOOTSTRAP_ERROR',
+          name: err?.name,
+          message: err?.message || String(err),
+          stack: err?.stack,
+        }),
+      );
+    }
   }
 };
