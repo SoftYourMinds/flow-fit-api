@@ -18,10 +18,15 @@
   - Added `enable_notification`, `reminder_mode`, `is_critical`, and `reminder_sent_at` to `WorkoutSession` in Prisma schema.
   - Added `PushSubscription` model for storing user web push browser credentials.
   - Added Prisma migration `20261111123000_add_notifications_and_critical_flag`.
-  - Added `NotificationsModule` and `WebPushService` using `web-push` with VAPID keys.
+  - Added `NotificationsModule` and `WebPushService` using `web-push@3.6.7` (CommonJS compatible) with VAPID keys.
   - Added `NotificationsController` with endpoints `/notifications/vapid-key`, `/notifications/subscribe`, `/notifications/unsubscribe`, `/notifications/test`.
   - Updated `SchedulerService` with `sendWorkoutReminders()`: dispatches Web Push notifications and duplicates to Telegram when `isCritical` is true.
   - Updated `CreateSessionDto` and `UpdateSessionDto` and `SessionsService` to persist notification settings.
+- Fixed Vercel Serverless `FUNCTION_INVOCATION_FAILED` (500):
+  - Downgraded `web-push` from `4.0.0` (ESM-only) to `3.6.7` (CommonJS) to eliminate `ERR_REQUIRE_ESM` in Vercel runtime.
+  - Added `binaryTargets = ["native", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x"]` in `prisma/schema.prisma`.
+  - Wrapped Express invocation in a response-finishing `Promise` inside `api/serverless.ts`.
+  - Split `ensureTables()` statements in `PrismaService` into single DDL queries.
 - Updated API version to `v0.3.0` and populated `app-updates.data.ts` with release notes for the new theming engine (presets, custom color builder, dark background tones).
 - Fixed TS1272 isolatedModules type import for `AppReleaseUpdate` in `app-updates.controller.ts`.
 - Added `workoutTypes` string array field to `WorkoutSession` via Prisma migration to support filtering and categorizing workouts (e.g. stretching, yoga).

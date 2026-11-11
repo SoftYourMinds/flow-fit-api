@@ -2,6 +2,14 @@
 
 This document tracks important architectural, design, and business logic decisions made during the development of the FlowFit backend API.
 
+## 2026-11-11: Vercel Serverless Compatibility (Prisma Binary Targets & CommonJS `web-push`)
+- **Decision:** Pinned `web-push` to `^3.6.7` (CommonJS), added explicit `binaryTargets = ["native", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x"]` in `prisma/schema.prisma`, and awaited Express response finish in `api/serverless.ts`.
+- **Rationale:** `web-push@4.0.0` converted to pure ESM (`"type": "module"`), throwing `ERR_REQUIRE_ESM` when compiled to CommonJS or invoked in Node 18/20 serverless environments on Vercel. Furthermore, Prisma requires explicit RHEL binary targets when bundled by `@vercel/node` (`@vercel/ncc`), and async serverless handlers must await the HTTP `finish`/`close` lifecycle event before returning so Vercel does not freeze the execution context mid-request.
+- **Implementation:**
+  - `package.json`: `"web-push": "^3.6.7"`.
+  - `prisma/schema.prisma`: added `binaryTargets`.
+  - `api/serverless.ts`: wrapped `server(req, res)` in a `Promise` tied to `res.on('finish')` and `res.on('close')`.
+
 ## 2026-11-11: Web Push & Dual-Channel Critical Notifications Architecture
 - **Decision:** Implemented Web Push notifications (via `web-push` and VAPID keys) combined with an optional `isCritical` flag that dual-dispatches urgent workout reminders to Telegram.
 - **Rationale:** PWA applications running on mobile or desktop browsers cannot rely on native device timers (`@capacitor/local-notifications`). Background push delivery requires server-side orchestration via Service Workers. For standard workouts, trainers receive native Web Push; for critical workouts (`isCritical = true`), reminders are additionally pushed to Telegram for guaranteed delivery.
