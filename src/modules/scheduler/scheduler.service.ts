@@ -194,18 +194,27 @@ export class SchedulerService {
       const body = `О ${timeStr} — тренування на «${locName}»${clientNames ? ` (${clientNames})` : ''}`;
 
       // 1. Web Push (always dispatched for sessions with enabled notifications)
-      await this.webPushService.sendToUser(session.trainerId, {
+      const sentPushCount = await this.webPushService.sendToUser(session.trainerId, {
         title: session.isCritical ? '🚨 КРИТИЧНЕ: Тренування' : '🏋️ Нагадування про тренування',
         body,
         data: { sessionId: session.id, url: '/tabs/scheduler' },
       });
 
       // 2. Telegram (dispatched if session has critical flag and trainer connected telegram)
+      let telegramDispatched = false;
       if (session.isCritical && session.trainer?.tgChatId) {
         await this.telegramService.sendMessage(
           session.trainer.tgChatId,
           `🚨 <b>КРИТИЧНЕ СПОВІЩЕННЯ ПРО ТРЕНУВАННЯ</b>\n\n${body}`,
         );
+        telegramDispatched = true;
+      }
+
+      if (sentPushCount === 0 && !telegramDispatched) {
+        this.logger.warn(
+          `Skipped marking reminderSentAt for session #${session.id}: 0 push subscriptions succeeded and Telegram was not sent.`,
+        );
+        continue;
       }
 
       await this.prisma.workoutSession.update({
@@ -214,7 +223,7 @@ export class SchedulerService {
       });
 
       this.logger.log(
-        `Dispatched reminder for session #${session.id} (critical: ${session.isCritical})`,
+        `Dispatched reminder for session #${session.id} (push: ${sentPushCount}, telegram: ${telegramDispatched}, critical: ${session.isCritical})`,
       );
     }
   }
@@ -227,24 +236,47 @@ export class SchedulerService {
       return new Date(sessionStart.getTime() - modeNum * 60 * 1000);
     }
 
-    const kyivStartStr = sessionStart.toLocaleString('en-US', { timeZone: 'Europe/Kyiv' });
-    const kyivStart = new Date(kyivStartStr);
-    const hour = kyivStart.getHours();
+    const hour = this.getKyivHour(sessionStart);
 
     if (hour >= 7 && hour < 10) {
       const hoursUntil = (sessionStart.getTime() - now.getTime()) / 3600000;
       if (hoursUntil >= 12) {
-        const evening = new Date(sessionStart);
-        evening.setDate(evening.getDate() - 1);
-        evening.setHours(20, 0, 0, 0);
-        return evening;
+        return this.buildKyivPreviousEvening(sessionStart);
       }
       return new Date(sessionStart.getTime() - 60 * 60 * 1000);
-    } else if (hour >= 10 && hour < 22) {
-      return new Date(sessionStart.getTime() - 2 * 60 * 60 * 1000);
-    } else {
-      return new Date(sessionStart.getTime() - 60 * 60 * 1000);
     }
+
+    if (hour >= 10 && hour < 22) {
+      return new Date(sessionStart.getTime() - 2 * 60 * 60 * 1000);
+    }
+
+    return new Date(sessionStart.getTime() - 60 * 60 * 1000);
+  }
+
+  private getKyivHour(date: Date): number {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Europe/Kyiv',
+      hour: '2-digit',
+      hour12: false,
+    }).formatToParts(date);
+    const hourPart = parts.find((p) => p.type === 'hour')?.value ?? '0';
+    return Number(hourPart) % 24;
+  }
+
+  private buildKyivPreviousEvening(sessionStart: Date): Date {
+    const kyivDateStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Kyiv',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(sessionStart);
+
+    const [year, month, day] = kyivDateStr.split('-').map(Number);
+    const prevDayUtc = new Date(Date.UTC(year, month - 1, day - 1, 20, 0, 0));
+    const kyivHourAtGuess = this.getKyivHour(prevDayUtc);
+    const offsetHours = kyivHourAtGuess - 20;
+
+    return new Date(prevDayUtc.getTime() - offsetHours * 60 * 60 * 1000);
   }
 
   async checkSubscriptionExpirations(): Promise<void> {
