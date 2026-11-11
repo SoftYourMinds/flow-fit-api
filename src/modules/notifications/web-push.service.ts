@@ -16,8 +16,13 @@ export class WebPushService {
     const subject = process.env.VAPID_SUBJECT || 'mailto:admin@flowfit.app';
 
     try {
-      webPush.setVapidDetails(subject, publicKey, privateKey);
-      this.logger.log('VAPID details configured successfully.');
+      const wp = (webPush as any).default || webPush;
+      if (typeof wp.setVapidDetails === 'function') {
+        wp.setVapidDetails(subject, publicKey, privateKey);
+        this.logger.log('VAPID details configured successfully.');
+      } else {
+        this.logger.warn('webPush.setVapidDetails is not available');
+      }
     } catch (err: unknown) {
       const error = err as Error;
       this.logger.error('Failed to configure VAPID details', error.stack);
@@ -93,7 +98,8 @@ export class WebPushService {
       };
 
       try {
-        await webPush.sendNotification(pushSubscription, notificationPayload);
+        const wp = (webPush as any).default || webPush;
+        await wp.sendNotification(pushSubscription, notificationPayload);
         successCount++;
       } catch (err: unknown) {
         const error = err as { statusCode?: number; message?: string };

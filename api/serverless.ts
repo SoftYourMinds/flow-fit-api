@@ -21,8 +21,22 @@ async function bootstrap(expressInstance: express.Express) {
 }
 
 export default async (req: any, res: any) => {
-  if (!cachedServer) {
-    cachedServer = await bootstrap(server);
+  try {
+    if (!cachedServer) {
+      cachedServer = await bootstrap(server);
+    }
+    return server(req, res);
+  } catch (err: any) {
+    console.error('SERVERLESS BOOTSTRAP ERROR:', err);
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'application/json');
+    return res.end(
+      JSON.stringify({
+        error: 'SERVERLESS_BOOTSTRAP_ERROR',
+        name: err?.name,
+        message: err?.message || String(err),
+        stack: err?.stack,
+      }),
+    );
   }
-  server(req, res);
 };
