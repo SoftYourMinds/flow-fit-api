@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TelegramService } from '../telegram/telegram.service';
+import { WebPushService } from '../notifications/web-push.service';
 import {
   Client,
   ClientSubscription,
@@ -26,6 +27,7 @@ export class SchedulerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly telegramService: TelegramService,
+    private readonly webPushService: WebPushService,
   ) {}
 
   // ─── Public Methods ─────────────────────────────────────────────
@@ -144,6 +146,104 @@ export class SchedulerService {
 
       const message = this.buildEveningSummaryMessage(sessions);
       await this.telegramService.sendMessage(user.tgChatId, message);
+    }
+  }
+
+  async sendWorkoutReminders(): Promise<void> {
+    this.logger.log('Checking and dispatching workout session reminders...');
+    const now = new Date();
+    const next24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+    const sessions = await this.prisma.workoutSession.findMany({
+      where: {
+        status: 'UPCOMING',
+        enableNotification: true,
+        reminderSentAt: null,
+        startTime: {
+          gte: now,
+          lte: next24h,
+        },
+      },
+      include: {
+        location: true,
+        trainer: true,
+        participants: {
+          include: { client: true },
+        },
+      },
+    });
+
+    for (const session of sessions) {
+      const notifyAt = this.calcNotificationTime(session.startTime, session.reminderMode);
+      if (!notifyAt || now < notifyAt) {
+        continue;
+      }
+
+      const clientNames = session.participants
+        .map((p) => p.customName || p.client?.fullName)
+        .filter(Boolean)
+        .join(', ');
+
+      const timeStr = session.startTime.toLocaleTimeString('uk-UA', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Europe/Kyiv',
+      });
+
+      const locName = session.location?.name || 'Локація';
+      const body = `О ${timeStr} — тренування на «${locName}»${clientNames ? ` (${clientNames})` : ''}`;
+
+      // 1. Web Push (always dispatched for sessions with enabled notifications)
+      await this.webPushService.sendToUser(session.trainerId, {
+        title: session.isCritical ? '🚨 КРИТИЧНЕ: Тренування' : '🏋️ Нагадування про тренування',
+        body,
+        data: { sessionId: session.id, url: '/tabs/scheduler' },
+      });
+
+      // 2. Telegram (dispatched if session has critical flag and trainer connected telegram)
+      if (session.isCritical && session.trainer?.tgChatId) {
+        await this.telegramService.sendMessage(
+          session.trainer.tgChatId,
+          `🚨 <b>КРИТИЧНЕ СПОВІЩЕННЯ ПРО ТРЕНУВАННЯ</b>\n\n${body}`,
+        );
+      }
+
+      await this.prisma.workoutSession.update({
+        where: { id: session.id },
+        data: { reminderSentAt: now },
+      });
+
+      this.logger.log(
+        `Dispatched reminder for session #${session.id} (critical: ${session.isCritical})`,
+      );
+    }
+  }
+
+  private calcNotificationTime(sessionStart: Date, mode: string): Date | null {
+    const now = new Date();
+    const modeNum = parseInt(mode, 10);
+
+    if (!isNaN(modeNum)) {
+      return new Date(sessionStart.getTime() - modeNum * 60 * 1000);
+    }
+
+    const kyivStartStr = sessionStart.toLocaleString('en-US', { timeZone: 'Europe/Kyiv' });
+    const kyivStart = new Date(kyivStartStr);
+    const hour = kyivStart.getHours();
+
+    if (hour >= 7 && hour < 10) {
+      const hoursUntil = (sessionStart.getTime() - now.getTime()) / 3600000;
+      if (hoursUntil >= 12) {
+        const evening = new Date(sessionStart);
+        evening.setDate(evening.getDate() - 1);
+        evening.setHours(20, 0, 0, 0);
+        return evening;
+      }
+      return new Date(sessionStart.getTime() - 60 * 60 * 1000);
+    } else if (hour >= 10 && hour < 22) {
+      return new Date(sessionStart.getTime() - 2 * 60 * 60 * 1000);
+    } else {
+      return new Date(sessionStart.getTime() - 60 * 60 * 1000);
     }
   }
 

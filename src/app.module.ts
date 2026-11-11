@@ -15,6 +15,7 @@ import { TelegramModule } from './modules/telegram/telegram.module';
 import { PortalModule } from './portal/portal.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { AppUpdatesModule } from './modules/app-updates/app-updates.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { AppUpdatesModule } from './modules/app-updates/app-updates.module';
     PortalModule,
     SubscriptionsModule,
     AppUpdatesModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

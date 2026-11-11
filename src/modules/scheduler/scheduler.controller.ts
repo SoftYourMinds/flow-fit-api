@@ -35,10 +35,13 @@ export class SchedulerController {
     // 1. Update session statuses
     await this.schedulerService.handleSessionStatusUpdates();
 
-    // 2. Check subscription expirations & send reminders
+    // 2. Dispatch workout reminders (Web Push & Telegram for critical)
+    await this.schedulerService.sendWorkoutReminders();
+
+    // 3. Check subscription expirations & send reminders
     await this.schedulerService.checkSubscriptionExpirations();
 
-    // 3. Dispatch digests based on Kyiv timezone
+    // 4. Dispatch digests based on Kyiv timezone
     await this.dispatchScheduledDigests();
 
     return {

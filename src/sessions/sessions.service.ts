@@ -47,6 +47,9 @@ export class SessionsService {
         workoutTypes: dto.workoutTypes || [],
         maxParticipants: dto.maxParticipants,
         anonymousParticipantsCount: dto.anonymousParticipantsCount ?? 0,
+        enableNotification: dto.enableNotification ?? false,
+        reminderMode: dto.reminderMode || 'auto',
+        isCritical: dto.isCritical ?? false,
       },
       include: {
         location: true,
@@ -102,6 +105,10 @@ export class SessionsService {
       workoutTypes: dto.workoutTypes,
       maxParticipants: dto.maxParticipants,
       anonymousParticipantsCount: dto.anonymousParticipantsCount,
+      enableNotification: dto.enableNotification,
+      reminderMode: dto.reminderMode,
+      isCritical: dto.isCritical,
+      reminderSentAt: dto.enableNotification === true || dto.startTime !== undefined ? null : undefined,
     };
 
     if (dto.startTime) {

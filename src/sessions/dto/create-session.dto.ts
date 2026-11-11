@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -61,4 +62,19 @@ export class CreateSessionDto {
   @Min(0)
   @IsOptional()
   anonymousParticipantsCount?: number;
+
+  @ApiProperty({ required: false, description: 'Whether notification reminder is enabled' })
+  @IsBoolean()
+  @IsOptional()
+  enableNotification?: boolean;
+
+  @ApiProperty({ required: false, description: 'Reminder timing preset, e.g. auto, 15, 30, 60' })
+  @IsString()
+  @IsOptional()
+  reminderMode?: string;
+
+  @ApiProperty({ required: false, description: 'Critical notification flag (sends Web Push + Telegram)' })
+  @IsBoolean()
+  @IsOptional()
+  isCritical?: boolean;
 }

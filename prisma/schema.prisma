@@ -56,10 +56,11 @@ model User {
   hashedRefreshToken String? @map("hashed_refresh_token")
   tgLinkToken        String? @unique @map("tg_link_token")
 
-  clients       Client[]
-  locations     Location[]
-  sessions      WorkoutSession[]
-  subscriptions ClientSubscription[]
+  clients           Client[]
+  locations         Location[]
+  sessions          WorkoutSession[]
+  subscriptions     ClientSubscription[]
+  pushSubscriptions PushSubscription[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -170,9 +171,13 @@ model WorkoutSession {
   price     Float         @default(0)
   status    SessionStatus @default(UPCOMING)
   isPaid    Boolean       @default(false) @map("is_paid")
-  workoutTypes    String[]   @default([]) @map("workout_types")
+  workoutTypes               String[]   @default([]) @map("workout_types")
   maxParticipants            Int?       @map("max_participants")
   anonymousParticipantsCount Int        @default(0) @map("anonymous_participants_count")
+  enableNotification         Boolean    @default(false) @map("enable_notification")
+  reminderMode               String     @default("auto") @map("reminder_mode")
+  isCritical                 Boolean    @default(false) @map("is_critical")
+  reminderSentAt             DateTime?  @map("reminder_sent_at")
 
   participants SessionParticipant[]
 
@@ -230,3 +235,18 @@ model ClientSubscription {
   @@index([trainerId, status])
   @@map("client_subscriptions")
 }
+
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+

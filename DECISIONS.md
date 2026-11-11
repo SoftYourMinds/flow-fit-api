@@ -2,6 +2,15 @@
 
 This document tracks important architectural, design, and business logic decisions made during the development of the FlowFit backend API.
 
+## 2026-11-11: Web Push & Dual-Channel Critical Notifications Architecture
+- **Decision:** Implemented Web Push notifications (via `web-push` and VAPID keys) combined with an optional `isCritical` flag that dual-dispatches urgent workout reminders to Telegram.
+- **Rationale:** PWA applications running on mobile or desktop browsers cannot rely on native device timers (`@capacitor/local-notifications`). Background push delivery requires server-side orchestration via Service Workers. For standard workouts, trainers receive native Web Push; for critical workouts (`isCritical = true`), reminders are additionally pushed to Telegram for guaranteed delivery.
+- **Implementation:**
+  - `WorkoutSession`: Added `enable_notification`, `reminder_mode`, `is_critical`, and `reminder_sent_at` columns.
+  - `PushSubscription`: Created table to manage browser push endpoints, auth, and p256dh keys tied to users with cascade deletion.
+  - `NotificationsModule` & `WebPushService`: Provides `/notifications/vapid-key`, `/notifications/subscribe`, `/notifications/unsubscribe`, and `/notifications/test`.
+  - `SchedulerService.sendWorkoutReminders()`: Checks upcoming sessions with reminders enabled, calculates target notification times, dispatches Web Push and optional Telegram alerts, and records `reminder_sent_at`.
+
 ## 2026-07-16: Telegram Bot Deep-Linking & Webhook Resilience
 - **Decision:** Bot connection logic in `TelegramService.startCommand` handles both `ctx.startPayload` and text splitting, and proactively checks for existing `tgChatId` links before validating deep-link tokens.
 - **Rationale:** Webhooks and polling often process the `/start` command twice due to latency or network retries. By checking if the user is already connected first, we prevent false-positive "Invalid Token" errors and improve UX for users clicking the bot link multiple times.
