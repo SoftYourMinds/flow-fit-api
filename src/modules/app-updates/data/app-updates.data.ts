@@ -14,10 +14,31 @@ export interface AppReleaseUpdate {
 
 export const APP_UPDATES_DATA: AppReleaseUpdate[] = [
   {
+    version: '0.4.2',
+    title: 'Оновлення FlowFit (v0.4.2)',
+    releaseDate: '2026-11-11',
+    badge: 'Новинка',
+    highlights: [
+      'Виправлено підписку Web Push на iOS PWA',
+      'Миттєва реєстрація Service Worker та перевірка при створенні тренувань',
+      'Додано тимчасову кнопку тесту Web Push у налаштуваннях',
+    ],
+    groups: [
+      {
+        category: '🔔 Web Push та iOS PWA',
+        items: [
+          'Прискорено реєстрацію Service Worker (registerImmediately) для надійної підписки на мобільних пристроях.',
+          'Додано перевірку дозволу на сповіщення після завантаження додатку та при створенні або редагуванні тренування.',
+          'Оновлено формат push-сповіщень (PNG-іконки та перехід при кліку), виправлено часовий пояс Europe/Kyiv у планувальнику та додано тимчасовий тест Web Push у Налаштуваннях.',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.4.1',
     title: 'Оновлення FlowFit (v0.4.1)',
     releaseDate: '2026-11-11',
-    badge: 'Новинка',
+    badge: 'Попереднє',
     highlights: [
       'Виправлено збереження тренувань із нагадуваннями',
       'Коректна передача часу нагадування для Web Push та Telegram',
