@@ -48,7 +48,7 @@ export class SessionsService {
         maxParticipants: dto.maxParticipants,
         anonymousParticipantsCount: dto.anonymousParticipantsCount ?? 0,
         enableNotification: dto.enableNotification ?? false,
-        reminderMode: dto.reminderMode || 'auto',
+        reminderMode: this.normalizeReminderMode(dto.reminderMode) ?? 'auto',
         isCritical: dto.isCritical ?? false,
       },
       include: {
@@ -106,9 +106,14 @@ export class SessionsService {
       maxParticipants: dto.maxParticipants,
       anonymousParticipantsCount: dto.anonymousParticipantsCount,
       enableNotification: dto.enableNotification,
-      reminderMode: dto.reminderMode,
+      reminderMode: this.normalizeReminderMode(dto.reminderMode),
       isCritical: dto.isCritical,
-      reminderSentAt: dto.enableNotification === true || dto.startTime !== undefined ? null : undefined,
+      reminderSentAt:
+        dto.enableNotification === true ||
+        dto.startTime !== undefined ||
+        dto.reminderMode !== undefined
+          ? null
+          : undefined,
     };
 
     if (dto.startTime) {
@@ -366,6 +371,14 @@ export class SessionsService {
   }
 
   // ─── Private Helpers ────────────────────────────────────────────
+
+  private normalizeReminderMode(mode?: string | number | null): string | undefined {
+    if (mode === undefined || mode === null) {
+      return undefined;
+    }
+    const normalized = String(mode).trim();
+    return normalized.length > 0 ? normalized : undefined;
+  }
 
   private buildFindAllWhereClause(
     trainerId: number,

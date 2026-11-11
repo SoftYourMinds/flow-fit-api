@@ -74,6 +74,78 @@ describe('SessionsService', () => {
     expect(service).toBeDefined();
   });
 
+  describe('create', () => {
+    it('should coerce numeric reminderMode to string before saving to Prisma', async () => {
+      prisma.workoutSession.findFirst.mockResolvedValue(null);
+      prisma.workoutSession.create.mockResolvedValue(mockSessionWithoutSub);
+
+      await service.create(mockTrainerId, {
+        locationId: 2,
+        type: 'INDIVIDUAL',
+        startTime: '2026-11-13T12:00:00.000Z',
+        endTime: '2026-11-13T12:50:00.000Z',
+        price: 350,
+        enableNotification: true,
+        reminderMode: 120 as unknown as string,
+        isCritical: true,
+      });
+
+      expect(prisma.workoutSession.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            enableNotification: true,
+            reminderMode: '120',
+            isCritical: true,
+          }),
+        }),
+      );
+    });
+
+    it('should default reminderMode to "auto" when omitted', async () => {
+      prisma.workoutSession.findFirst.mockResolvedValue(null);
+      prisma.workoutSession.create.mockResolvedValue(mockSessionWithoutSub);
+
+      await service.create(mockTrainerId, {
+        locationId: 2,
+        startTime: '2026-11-13T12:00:00.000Z',
+        endTime: '2026-11-13T12:50:00.000Z',
+      });
+
+      expect(prisma.workoutSession.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            reminderMode: 'auto',
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('update', () => {
+    it('should coerce numeric reminderMode to string and reset reminderSentAt on update', async () => {
+      prisma.workoutSession.findUnique.mockResolvedValue(mockSessionWithoutSub);
+      prisma.workoutSession.update.mockResolvedValue(mockSessionWithoutSub);
+
+      await service.update(mockTrainerId, mockSessionId, {
+        enableNotification: true,
+        reminderMode: 60 as unknown as string,
+        isCritical: true,
+      });
+
+      expect(prisma.workoutSession.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: mockSessionId },
+          data: expect.objectContaining({
+            enableNotification: true,
+            reminderMode: '60',
+            isCritical: true,
+            reminderSentAt: null,
+          }),
+        }),
+      );
+    });
+  });
+
   describe('remove', () => {
     it('should delete a standalone session directly without subscription recalculation', async () => {
       prisma.workoutSession.findUnique.mockResolvedValue(mockSessionWithoutSub);

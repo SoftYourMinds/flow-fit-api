@@ -10,6 +10,7 @@ import {
   Min,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { SessionType, SessionStatus } from '@prisma/client';
 
 export class CreateSessionDto {
@@ -69,11 +70,17 @@ export class CreateSessionDto {
   enableNotification?: boolean;
 
   @ApiProperty({ required: false, description: 'Reminder timing preset, e.g. auto, 15, 30, 60' })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'number' || typeof value === 'string' ? String(value) : value,
+  )
   @IsString()
   @IsOptional()
   reminderMode?: string;
 
-  @ApiProperty({ required: false, description: 'Critical notification flag (sends Web Push + Telegram)' })
+  @ApiProperty({
+    required: false,
+    description: 'Critical notification flag (sends Web Push + Telegram)',
+  })
   @IsBoolean()
   @IsOptional()
   isCritical?: boolean;
