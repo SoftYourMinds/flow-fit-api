@@ -321,18 +321,20 @@ export class SubscriptionsService implements OnApplicationBootstrap {
     const startDate = candidateSlots[0].startTime;
     const endDate = candidateSlots[candidateSlots.length - 1].endTime;
 
-    await this.validateNoOverlappingActiveSubscription(
-      trainerId,
-      clientId,
-      SubscriptionType.DATE_RANGE,
-      startDate,
-      endDate,
-    );
-
-    const validSlots = await this.filterNonConflictingSlots(trainerId, candidateSlots);
-
     return this.prisma.$transaction(
       async (tx) => {
+        await this.validateNoOverlappingActiveSubscription(
+          trainerId,
+          clientId,
+          SubscriptionType.DATE_RANGE,
+          startDate,
+          endDate,
+          undefined,
+          tx,
+        );
+
+        const validSlots = await this.filterNonConflictingSlots(trainerId, candidateSlots, tx);
+
         const subscription = await tx.clientSubscription.create({
           data: {
             trainerId,
@@ -422,9 +424,11 @@ export class SubscriptionsService implements OnApplicationBootstrap {
     startDate?: Date,
     endDate?: Date,
     excludeSubscriptionId?: number,
+    tx?: Prisma.TransactionClient,
   ): Promise<void> {
+    const prismaClient = tx ?? this.prisma;
     const activeSubs =
-      (await this.prisma.clientSubscription.findMany({
+      (await prismaClient.clientSubscription.findMany({
         where: {
           trainerId,
           clientId,
@@ -524,6 +528,7 @@ export class SubscriptionsService implements OnApplicationBootstrap {
   private async filterNonConflictingSlots(
     trainerId: number,
     candidateSlots: { startTime: Date; endTime: Date }[],
+    tx?: Prisma.TransactionClient,
   ): Promise<{ startTime: Date; endTime: Date }[]> {
     if (candidateSlots.length === 0) {
       return [];
@@ -532,7 +537,8 @@ export class SubscriptionsService implements OnApplicationBootstrap {
     const rangeStart = new Date(Math.min(...candidateSlots.map((s) => s.startTime.getTime())));
     const rangeEnd = new Date(Math.max(...candidateSlots.map((s) => s.endTime.getTime())));
 
-    const existingSessions = await this.prisma.workoutSession.findMany({
+    const prismaClient = tx ?? this.prisma;
+    const existingSessions = await prismaClient.workoutSession.findMany({
       where: {
         trainerId,
         startTime: { lt: rangeEnd },

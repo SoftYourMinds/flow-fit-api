@@ -14,6 +14,10 @@
 - API is configured for serverless deployment on Vercel (`api/serverless.ts`), with file logging disabled in production environments.
 
 ## Recent Changes
+- Prevented duplicate workout session creation under concurrent requests or mobile double-taps:
+  - Wrapped `validateTimeSlot` and `workoutSession.create` inside a `Serializable` Prisma transaction (`SessionsService.create()`) and mapped `P2034` serialization conflicts to `ConflictException`.
+  - Moved `filterNonConflictingSlots` inside the Prisma transaction in `SessionsService.createRecurringSessions()` and `SubscriptionsService.createWithRecurring()`.
+  - Guarded cold-start Express initialization in `api/serverless.ts` with a shared `bootstrapPromise`.
 - Fixed 500 Internal Server Error on `POST /sessions` and `PUT /sessions/:id` when `reminderMode` was sent as an integer (e.g., `60`, `120`) without `ValidationPipe` in Vercel serverless runtime:
   - Added `normalizeReminderMode()` in `SessionsService` (`create()` & `update()`) to safely coerce numeric/string values to string and reset `reminderSentAt` when `reminderMode` changes.
   - Added `@Transform` in `CreateSessionDto` to coerce numeric/string `reminderMode` values before `@IsString()` validation.

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { SessionsService } from './sessions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TelegramService } from '../modules/telegram/telegram.service';
@@ -118,6 +118,18 @@ describe('SessionsService', () => {
           }),
         }),
       );
+    });
+
+    it('should convert Prisma serialization conflict (P2034) into ConflictException to prevent duplicate concurrent sessions', async () => {
+      prisma.$transaction.mockRejectedValueOnce({ code: 'P2034' });
+
+      await expect(
+        service.create(mockTrainerId, {
+          locationId: 2,
+          startTime: '2026-11-13T12:00:00.000Z',
+          endTime: '2026-11-13T12:50:00.000Z',
+        }),
+      ).rejects.toThrow(ConflictException);
     });
   });
 

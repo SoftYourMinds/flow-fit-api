@@ -6,6 +6,7 @@ import * as express from 'express';
 
 const server = express.default ? express.default() : (express as any)();
 let cachedServer: any;
+let bootstrapPromise: Promise<any> | null = null;
 
 async function bootstrap(expressInstance: express.Express) {
   const app = await NestFactory.create(
@@ -23,7 +24,13 @@ async function bootstrap(expressInstance: express.Express) {
 export default async (req: any, res: any) => {
   try {
     if (!cachedServer) {
-      cachedServer = await bootstrap(server);
+      if (!bootstrapPromise) {
+        bootstrapPromise = bootstrap(server).catch((err) => {
+          bootstrapPromise = null;
+          throw err;
+        });
+      }
+      cachedServer = await bootstrapPromise;
     }
     return new Promise<void>((resolve, reject) => {
       res.on('finish', resolve);

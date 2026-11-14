@@ -2,22 +2,18 @@
 
 ## Last Session Summary
 
-**Date:** 2026-11-11
-**Session focus:** Fix 500 Internal Server Error on Workout Creation/Update (`reminderMode` type mismatch in Vercel serverless)
+**Date:** 2026-11-14
+**Session focus:** Prevent duplicate workout session creation on concurrent requests / double-taps
 
 ### ✅ Accomplished
-- **Vercel Production Log Diagnostics:**
-  - Inspected `flow-fit-api` production runtime logs (`dpl_E1YeFKNCXpe6bHgHSY1WL4mMY691`) via Vercel MCP (`get_runtime_logs`).
-  - Identified exact Prisma exception on `POST /sessions` and `PUT /sessions/:id`: `Argument reminderMode: Invalid value provided. Expected String, provided Int.` (when client sent numeric offsets like `60` or `120`, and `api/serverless.ts` did not run `ValidationPipe` implicit conversion).
-- **Backend Fix & Defensive Normalization (`v0.4.1`):**
-  - Added `normalizeReminderMode()` helper in `SessionsService` used in `create()` and `update()` so numeric or string `reminderMode` is always normalized to `string` for Prisma.
-  - Also reset `reminderSentAt` in `SessionsService.update()` when `reminderMode` is updated.
-  - Added `@Transform` decorator in `CreateSessionDto` for `reminderMode` and fixed ESLint typing in `WebPushService`.
-  - Added unit tests in `sessions.service.spec.ts`, updated `app-updates.data.ts` & `app-updates.service.spec.ts`, and bumped version to `0.4.1`.
-  - Verified with `npm run lint`, `npx tsc --noEmit`, `npx nest build`, and `jest` (`sessions.service.spec.ts`, `app-updates.service.spec.ts` — 14/14 passing).
+- **Transactional Session Creation (`SessionsService` & `SubscriptionsService`):**
+  - Wrapped `validateTimeSlot()` and `workoutSession.create()` inside a `Serializable` Prisma transaction in `SessionsService.create()` and converted `P2034` serialization conflicts into `ConflictException('На цей час вже створено інше тренування')`.
+  - Moved `filterNonConflictingSlots()` inside the Prisma `$transaction` in `SessionsService.createRecurringSessions()` and `SubscriptionsService.createWithRecurring()`.
+  - Added a shared `bootstrapPromise` in `api/serverless.ts` so concurrent requests hitting a cold Vercel serverless container await the same Express initialization.
+  - Added unit test in `sessions.service.spec.ts` (30/30 tests in `sessions.service.spec.ts` + `subscriptions.service.spec.ts` passing; `npx nest build` passes with 0 errors).
 
 ### ⚠️ Pending / Known Issues
 - Pre-existing boilerplate controller/service specs (9 unrelated suites) still fail due to missing mocked providers in Nest test modules.
 
 ### 🚀 Immediate Next Steps
-1. Verify live workout creation/editing in production (`https://flow-fit-api.vercel.app`) with non-auto reminder offsets (e.g., 60 / 120 min) and `isCritical` enabled.
+1. Monitor workout creation in production to confirm zero duplicate sessions.

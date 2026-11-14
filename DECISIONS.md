@@ -2,6 +2,14 @@
 
 This document tracks important architectural, design, and business logic decisions made during the development of the FlowFit backend API.
 
+## 2026-11-14: Transactional Time-Slot Validation to Prevent Duplicate Sessions
+- **Decision:** Wrapped `validateTimeSlot` and `workoutSession.create` inside a `Prisma.TransactionIsolationLevel.Serializable` transaction in `SessionsService.create()`, moved `filterNonConflictingSlots` inside `$transaction` for recurring creation, and deduplicated cold-start bootstrap in `api/serverless.ts` via a shared `bootstrapPromise`.
+- **Rationale:** Without a transaction, two concurrent `POST /sessions` requests (e.g., triggered by a mobile double-tap or network retry) could both execute `validateTimeSlot` (`findFirst`) before either `INSERT` committed, resulting in two duplicate `WorkoutSession` records for the same trainer and time slot.
+- **Implementation:**
+  - `src/sessions/sessions.service.ts`: Executed `validateTimeSlot` + `create` in a `Serializable` transaction and converted `P2034` write conflicts to `ConflictException`.
+  - `src/subscriptions/subscriptions.service.ts`: Moved `validateNoOverlappingActiveSubscription` and `filterNonConflictingSlots` inside the `$transaction` block of `createWithRecurring`.
+  - `api/serverless.ts`: Cached `bootstrapPromise` during cold-start initialization.
+
 ## 2026-11-11: Defensive `reminderMode` String Coercion in Sessions Service & DTO
 - **Decision:** Normalized `reminderMode` to string inside `SessionsService` (`normalizeReminderMode`) and added `@Transform` in `CreateSessionDto`, rather than enabling `ValidationPipe({ whitelist: true })` in `api/serverless.ts`.
 - **Rationale:** Vercel runtime logs revealed `POST /sessions` and `PUT /sessions/:id` threw 500 errors (`Argument reminderMode: Expected String, provided Int`) when clients sent numeric offsets (`60`, `120`) because `api/serverless.ts` omits `ValidationPipe`. Enabling `ValidationPipe({ whitelist: true })` globally in `api/serverless.ts` would break `AuthController` (`LoginDto` lacks `class-validator` decorators) and raw Prisma-typed controllers, so defensive coercion in `SessionsService` + DTO `@Transform` handles both local (`main.ts`) and serverless (`api/serverless.ts`) runtimes safely, including cached older PWA clients.

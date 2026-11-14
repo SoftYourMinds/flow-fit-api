@@ -32,30 +32,42 @@ export class SessionsService {
     const startTime = new Date(dto.startTime);
     const endTime = new Date(dto.endTime);
 
-    await this.validateTimeSlot(trainerId, startTime, endTime);
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          await this.validateTimeSlot(trainerId, startTime, endTime, undefined, tx);
 
-    return this.prisma.workoutSession.create({
-      data: {
-        trainerId,
-        locationId: dto.locationId,
-        type: dto.type,
-        startTime,
-        endTime,
-        price: dto.price,
-        status: dto.status,
-        isPaid: dto.status === 'COMPLETED' ? true : dto.isPaid || false,
-        workoutTypes: dto.workoutTypes || [],
-        maxParticipants: dto.maxParticipants,
-        anonymousParticipantsCount: dto.anonymousParticipantsCount ?? 0,
-        enableNotification: dto.enableNotification ?? false,
-        reminderMode: this.normalizeReminderMode(dto.reminderMode) ?? 'auto',
-        isCritical: dto.isCritical ?? false,
-      },
-      include: {
-        location: true,
-        participants: { include: { client: true } },
-      },
-    });
+          return tx.workoutSession.create({
+            data: {
+              trainerId,
+              locationId: dto.locationId,
+              type: dto.type,
+              startTime,
+              endTime,
+              price: dto.price,
+              status: dto.status,
+              isPaid: dto.status === 'COMPLETED' ? true : dto.isPaid || false,
+              workoutTypes: dto.workoutTypes || [],
+              maxParticipants: dto.maxParticipants,
+              anonymousParticipantsCount: dto.anonymousParticipantsCount ?? 0,
+              enableNotification: dto.enableNotification ?? false,
+              reminderMode: this.normalizeReminderMode(dto.reminderMode) ?? 'auto',
+              isCritical: dto.isCritical ?? false,
+            },
+            include: {
+              location: true,
+              participants: { include: { client: true } },
+            },
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error: unknown) {
+      if (this.isSerializationConflict(error)) {
+        throw new ConflictException('На цей час вже створено інше тренування');
+      }
+      throw error;
+    }
   }
 
   async findAll(trainerId: number, query: SessionQueryDto): Promise<WorkoutSession[]> {
@@ -315,13 +327,13 @@ export class SessionsService {
       buildUtcSessionTimes(dateItem, dto.startTime, dto.endTime, dto.timezoneOffset),
     );
 
-    const validSlots = await this.filterNonConflictingSlots(trainerId, candidateSlots);
-    if (validSlots.length === 0) {
-      return [];
-    }
-
     return this.prisma.$transaction(
       async (tx) => {
+        const validSlots = await this.filterNonConflictingSlots(trainerId, candidateSlots, tx);
+        if (validSlots.length === 0) {
+          return [];
+        }
+
         const sessionsData = validSlots.map((slot) => ({
           trainerId,
           locationId: dto.locationId,
@@ -416,17 +428,28 @@ export class SessionsService {
     return where;
   }
 
+  private isSerializationConflict(error: unknown): boolean {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: string }).code === 'P2034'
+    );
+  }
+
   private async validateTimeSlot(
     trainerId: number,
     startTime: Date,
     endTime: Date,
     excludeSessionId?: number,
+    tx?: Prisma.TransactionClient,
   ): Promise<void> {
     if (startTime >= endTime) {
       throw new BadRequestException('Час завершення тренування має бути пізніше часу початку');
     }
 
-    const conflictingSession = await this.prisma.workoutSession.findFirst({
+    const prismaClient = tx ?? this.prisma;
+    const conflictingSession = await prismaClient.workoutSession.findFirst({
       where: {
         trainerId,
         ...(excludeSessionId ? { id: { not: excludeSessionId } } : {}),
@@ -447,6 +470,7 @@ export class SessionsService {
   private async filterNonConflictingSlots(
     trainerId: number,
     candidateSlots: { startTime: Date; endTime: Date }[],
+    tx?: Prisma.TransactionClient,
   ): Promise<{ startTime: Date; endTime: Date }[]> {
     if (candidateSlots.length === 0) {
       return [];
@@ -455,7 +479,8 @@ export class SessionsService {
     const rangeStart = new Date(Math.min(...candidateSlots.map((s) => s.startTime.getTime())));
     const rangeEnd = new Date(Math.max(...candidateSlots.map((s) => s.endTime.getTime())));
 
-    const existingSessions = await this.prisma.workoutSession.findMany({
+    const prismaClient = tx ?? this.prisma;
+    const existingSessions = await prismaClient.workoutSession.findMany({
       where: {
         trainerId,
         startTime: { lt: rangeEnd },
