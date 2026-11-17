@@ -18,6 +18,7 @@ export class NotificationsController {
   @Get('vapid-key')
   @ApiOperation({ summary: 'Get VAPID public key for Web Push subscription' })
   @ApiResponse({ status: 200, description: 'Public VAPID key returned successfully' })
+  @ApiResponse({ status: 503, description: 'VAPID public key is not configured' })
   getVapidKey(): { publicKey: string } {
     return this.webPushService.getPublicKey();
   }

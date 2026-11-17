@@ -1,6 +1,9 @@
-import { WebPushService } from './web-push.service';
-import { PrismaService } from '../../prisma/prisma.service';
+import { ServiceUnavailableException } from '@nestjs/common';
+
 import * as webPush from 'web-push';
+
+import { PrismaService } from '../../prisma/prisma.service';
+import { WebPushService } from './web-push.service';
 
 jest.mock('web-push', () => ({
   setVapidDetails: jest.fn(),
@@ -19,8 +22,17 @@ describe('WebPushService', () => {
     };
   };
 
+  const originalEnv = process.env;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env = {
+      ...originalEnv,
+      VAPID_PUBLIC_KEY: 'test-vapid-public-key',
+      VAPID_PRIVATE_KEY: 'test-vapid-private-key',
+      VAPID_SUBJECT: 'mailto:test@flowfit.app',
+    };
+
     prisma = {
       pushSubscription: {
         count: jest.fn(),
@@ -31,6 +43,41 @@ describe('WebPushService', () => {
       },
     };
     service = new WebPushService(prisma as unknown as PrismaService);
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it('configures VAPID details from environment variables', () => {
+    expect(webPush.setVapidDetails).toHaveBeenCalledWith(
+      'mailto:test@flowfit.app',
+      'test-vapid-public-key',
+      'test-vapid-private-key',
+    );
+    expect(service.getPublicKey()).toEqual({ publicKey: 'test-vapid-public-key' });
+  });
+
+  it('throws ServiceUnavailableException and skips sending when VAPID env vars are missing', async () => {
+    delete process.env.VAPID_PUBLIC_KEY;
+    delete process.env.VAPID_PRIVATE_KEY;
+
+    const unconfiguredService = new WebPushService(prisma as unknown as PrismaService);
+
+    expect(() => unconfiguredService.getPublicKey()).toThrow(ServiceUnavailableException);
+
+    const result = await unconfiguredService.sendToUserDetailed(1, {
+      title: 'FlowFit',
+      body: 'Test body',
+    });
+
+    expect(result).toEqual({
+      totalSubscriptions: 0,
+      sentCount: 0,
+      failedCount: 0,
+      errors: ['VAPID keys are not configured on server.'],
+    });
+    expect(prisma.pushSubscription.findMany).not.toHaveBeenCalled();
   });
 
   it('sends PNG icon/badge and onActionClick in Angular NGSW format', async () => {

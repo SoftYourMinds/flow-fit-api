@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 
 import * as webPush from 'web-push';
 
@@ -36,9 +36,8 @@ function getWebPushClient(): typeof webPush {
 @Injectable()
 export class WebPushService {
   private readonly logger = new Logger(WebPushService.name);
-  private readonly defaultPublicKey =
-    'BFDEjZfejbXkWd8LO0SF5wO-YSld4Dj6Pc-oISzfoizPoHEm1-HK_YKi8GMTVyZebj20L3VGhb8udBPpb_ZBW3E';
-  private readonly defaultPrivateKey = 'AP3FlKcSa6TAKI5CjTo8hwqt-TYWYvli1GXVr2cZXDw';
+  private publicKey = '';
+  private isConfigured = false;
 
   constructor(private readonly prisma: PrismaService) {
     this.configureVapidDetails();
@@ -47,8 +46,11 @@ export class WebPushService {
   // ─── Public Methods ─────────────────────────────────────────────
 
   getPublicKey(): { publicKey: string } {
-    const publicKey = process.env.VAPID_PUBLIC_KEY || this.defaultPublicKey;
-    return { publicKey };
+    if (!this.publicKey) {
+      throw new ServiceUnavailableException('VAPID public key is not configured');
+    }
+
+    return { publicKey: this.publicKey };
   }
 
   async getSubscriptionCount(userId: number): Promise<number> {
@@ -93,6 +95,16 @@ export class WebPushService {
   }
 
   async sendToUserDetailed(userId: number, payload: PushSendPayload): Promise<PushSendResult> {
+    if (!this.isConfigured) {
+      this.logger.warn('Skipping Web Push send: VAPID keys are not configured.');
+      return {
+        totalSubscriptions: 0,
+        sentCount: 0,
+        failedCount: 0,
+        errors: ['VAPID keys are not configured on server.'],
+      };
+    }
+
     const subscriptions = await this.prisma.pushSubscription.findMany({
       where: { userId },
     });
@@ -126,9 +138,16 @@ export class WebPushService {
   // ─── Private Helpers ────────────────────────────────────────────
 
   private configureVapidDetails(): void {
-    const publicKey = process.env.VAPID_PUBLIC_KEY || this.defaultPublicKey;
-    const privateKey = process.env.VAPID_PRIVATE_KEY || this.defaultPrivateKey;
-    const subject = process.env.VAPID_SUBJECT || 'mailto:admin@flowfit.app';
+    const publicKey = process.env.VAPID_PUBLIC_KEY?.trim();
+    const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
+    const subject = process.env.VAPID_SUBJECT?.trim() || 'mailto:admin@flowfit.app';
+
+    if (!publicKey || !privateKey) {
+      this.logger.warn(
+        'VAPID_PUBLIC_KEY or VAPID_PRIVATE_KEY is missing in environment variables. Web Push is disabled.',
+      );
+      return;
+    }
 
     try {
       const wp = getWebPushClient();
@@ -138,6 +157,8 @@ export class WebPushService {
       }
 
       wp.setVapidDetails(subject, publicKey, privateKey);
+      this.publicKey = publicKey;
+      this.isConfigured = true;
       this.logger.log('VAPID details configured successfully.');
     } catch (err: unknown) {
       const error = err as Error;
