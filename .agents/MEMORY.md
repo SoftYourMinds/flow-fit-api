@@ -15,7 +15,7 @@
 
 ## 🪵 ACTIVE TECH DEBT & ACCEPTABLE HACKS
 
-_(empty — fresh project, no tech debt yet)_
+- **Session participant sync on `PUT /sessions/:id` (`SessionsService.update`)**: Uses transactional `deleteMany` + `createMany` when `participants` array is provided. Acceptable for Level 1 MVP since `SessionParticipant.isAttended` is not yet used on the client; replace with diff-based sync once per-participant attendance tracking is introduced.
 
 ---
 
@@ -135,3 +135,4 @@ Types: feat · fix · chore · refactor · docs · style
 - **2026-09-22**: Added `anonymousParticipantsCount` to `WorkoutSession` model, DTOs, and created migration for unnamed participant tracking.
 - **2026-10-02**: Implemented App Updates feature (Option B). Created `AppUpdatesModule` on API (`GET /app-updates/latest`, `GET /app-updates`, `POST /app-updates/broadcast-telegram`). Integrated preloading check into `AppInitService`, added What's New sheet modal, and created dedicated `/tabs/settings/last-updates` page in `flow-fit-client`.
 - **2026-10-02**: Upgraded `/git-commit` workflow with automatic SemVer version bumping and Ukrainian release notes generation. Successfully deployed to Vercel and delivered `v0.2.0` release broadcast to all trainers via Telegram bot.
+- **2026-11-20**: Moved `maxParticipants` from `WorkoutSession` to `Location` (default `8`, migration `20261120001500_move_max_participants_to_location`), added atomic `participants` create/update support + `INDIVIDUAL <= 1` participant validation in `SessionsService`, fixed `duplicateWeek` anonymous count copying and `SchedulerService` anonymous participants formatting.
