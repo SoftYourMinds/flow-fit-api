@@ -1,3 +1,5 @@
+import { ApiProperty } from '@nestjs/swagger';
+
 import {
   IsArray,
   IsBoolean,
@@ -8,10 +10,12 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateNested,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { SessionType, SessionStatus } from '@prisma/client';
+
+import { AddParticipantDto } from './add-participant.dto';
 
 export class CreateSessionDto {
   @ApiProperty()
@@ -52,17 +56,22 @@ export class CreateSessionDto {
   @IsOptional()
   workoutTypes?: string[];
 
-  @ApiProperty({ required: false, description: 'Max number of participants allowed' })
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  maxParticipants?: number;
-
   @ApiProperty({ required: false, description: 'Number of anonymous/unnamed participants' })
   @IsInt()
   @Min(0)
   @IsOptional()
   anonymousParticipantsCount?: number;
+
+  @ApiProperty({
+    required: false,
+    type: [AddParticipantDto],
+    description: 'Named or registered client participants for this session',
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AddParticipantDto)
+  @IsOptional()
+  participants?: AddParticipantDto[];
 
   @ApiProperty({ required: false, description: 'Whether notification reminder is enabled' })
   @IsBoolean()

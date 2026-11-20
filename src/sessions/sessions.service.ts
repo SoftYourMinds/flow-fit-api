@@ -4,6 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+
+import { Prisma, SessionParticipant, SessionType, WorkoutSession } from '@prisma/client';
+
 import { CreateSessionDto } from './dto/create-session.dto';
 import { UpdateSessionDto } from './dto/update-session.dto';
 import { SessionQueryDto } from './dto/session-query.dto';
@@ -12,11 +15,22 @@ import { CreateRecurringSessionsDto } from './dto/create-recurring-sessions.dto'
 import { PrismaService } from '../prisma/prisma.service';
 import { TelegramService } from '../modules/telegram/telegram.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
-import { Prisma, SessionParticipant, WorkoutSession } from '@prisma/client';
 import {
   buildUtcSessionTimes,
   generateRecurringCalendarDates,
 } from '../shared/utils/date-time.util';
+
+type SessionWithDetails = Prisma.WorkoutSessionGetPayload<{
+  include: {
+    location: true;
+    participants: { include: { client: true } };
+  };
+}>;
+
+interface NormalizedParticipantInput {
+  clientId?: number;
+  customName?: string;
+}
 
 @Injectable()
 export class SessionsService {
@@ -31,6 +45,11 @@ export class SessionsService {
   async create(trainerId: number, dto: CreateSessionDto): Promise<WorkoutSession> {
     const startTime = new Date(dto.startTime);
     const endTime = new Date(dto.endTime);
+    const sessionType = dto.type ?? SessionType.INDIVIDUAL;
+    const anonymousCount = dto.anonymousParticipantsCount ?? 0;
+    const participants = this.normalizeParticipants(dto.participants);
+
+    this.validateParticipantsConstraint(sessionType, participants.length, anonymousCount);
 
     try {
       return await this.prisma.$transaction(
@@ -41,18 +60,18 @@ export class SessionsService {
             data: {
               trainerId,
               locationId: dto.locationId,
-              type: dto.type,
+              type: sessionType,
               startTime,
               endTime,
               price: dto.price,
               status: dto.status,
               isPaid: dto.status === 'COMPLETED' ? true : dto.isPaid || false,
               workoutTypes: dto.workoutTypes || [],
-              maxParticipants: dto.maxParticipants,
-              anonymousParticipantsCount: dto.anonymousParticipantsCount ?? 0,
+              anonymousParticipantsCount: anonymousCount,
               enableNotification: dto.enableNotification ?? false,
               reminderMode: this.normalizeReminderMode(dto.reminderMode) ?? 'auto',
               isCritical: dto.isCritical ?? false,
+              ...(participants.length > 0 ? { participants: { create: participants } } : {}),
             },
             include: {
               location: true,
@@ -83,7 +102,7 @@ export class SessionsService {
     });
   }
 
-  async findOne(trainerId: number, id: number): Promise<WorkoutSession> {
+  async findOne(trainerId: number, id: number): Promise<SessionWithDetails> {
     const session = await this.prisma.workoutSession.findUnique({
       where: { id },
       include: {
@@ -109,13 +128,25 @@ export class SessionsService {
       await this.validateTimeSlot(trainerId, startTime, endTime, id);
     }
 
+    const hasParticipantsUpdate = dto.participants !== undefined;
+    const nextParticipants = hasParticipantsUpdate
+      ? this.normalizeParticipants(dto.participants)
+      : undefined;
+    const nextType = dto.type ?? existing.type;
+    const nextAnonymousCount =
+      dto.anonymousParticipantsCount ?? existing.anonymousParticipantsCount;
+    const nextParticipantsCount = nextParticipants
+      ? nextParticipants.length
+      : existing.participants.length;
+
+    this.validateParticipantsConstraint(nextType, nextParticipantsCount, nextAnonymousCount);
+
     const data: Prisma.WorkoutSessionUpdateInput = {
       location: dto.locationId !== undefined ? { connect: { id: dto.locationId } } : undefined,
       type: dto.type,
       price: dto.price,
       status: dto.status,
       workoutTypes: dto.workoutTypes,
-      maxParticipants: dto.maxParticipants,
       anonymousParticipantsCount: dto.anonymousParticipantsCount,
       enableNotification: dto.enableNotification,
       reminderMode: this.normalizeReminderMode(dto.reminderMode),
@@ -142,15 +173,39 @@ export class SessionsService {
       data.isPaid = dto.isPaid;
     }
 
-    const updatedSession = await this.prisma.workoutSession.update({
-      where: { id },
-      data,
-      include: {
-        location: true,
-        participants: { include: { client: true } },
-        trainer: true,
-      },
-    });
+    const updatedSession = hasParticipantsUpdate
+      ? await this.prisma.$transaction(async (tx) => {
+          await tx.sessionParticipant.deleteMany({ where: { sessionId: id } });
+
+          if (nextParticipants && nextParticipants.length > 0) {
+            await tx.sessionParticipant.createMany({
+              data: nextParticipants.map((p) => ({
+                sessionId: id,
+                clientId: p.clientId,
+                customName: p.customName,
+              })),
+            });
+          }
+
+          return tx.workoutSession.update({
+            where: { id },
+            data,
+            include: {
+              location: true,
+              participants: { include: { client: true } },
+              trainer: true,
+            },
+          });
+        })
+      : await this.prisma.workoutSession.update({
+          where: { id },
+          data,
+          include: {
+            location: true,
+            participants: { include: { client: true } },
+            trainer: true,
+          },
+        });
 
     // Telegram Notification logic
     const shouldNotifyTrainer = dto.status === 'COMPLETED' && updatedSession.trainer?.tgChatId;
@@ -193,13 +248,23 @@ export class SessionsService {
     sessionId: number,
     dto: AddParticipantDto,
   ): Promise<SessionParticipant> {
-    await this.findOne(trainerId, sessionId); // Verify ownership
+    const session = await this.findOne(trainerId, sessionId); // Verify ownership
+    const normalized = this.normalizeParticipants([dto]);
+    if (normalized.length === 0) {
+      throw new BadRequestException('Вкажіть клієнта або імʼя учасника');
+    }
+
+    this.validateParticipantsConstraint(
+      session.type,
+      session.participants.length + 1,
+      session.anonymousParticipantsCount,
+    );
 
     return this.prisma.sessionParticipant.create({
       data: {
         sessionId,
-        clientId: dto.clientId,
-        customName: dto.customName,
+        clientId: normalized[0].clientId,
+        customName: normalized[0].customName,
       },
       include: { client: true },
     });
@@ -254,6 +319,7 @@ export class SessionsService {
           price: session.price,
           status: 'UPCOMING',
           workoutTypes: session.workoutTypes || [],
+          anonymousParticipantsCount: session.anonymousParticipantsCount,
           startTime: newStartTime,
           endTime: newEndTime,
           participants: {
@@ -383,6 +449,52 @@ export class SessionsService {
   }
 
   // ─── Private Helpers ────────────────────────────────────────────
+
+  private normalizeParticipants(participants?: AddParticipantDto[]): NormalizedParticipantInput[] {
+    if (!participants || participants.length === 0) {
+      return [];
+    }
+
+    const seenClientIds = new Set<number>();
+    const normalized: NormalizedParticipantInput[] = [];
+
+    for (const participant of participants) {
+      if (participant.clientId !== undefined && participant.clientId !== null) {
+        const clientId = Number(participant.clientId);
+        if (!Number.isInteger(clientId) || clientId <= 0 || seenClientIds.has(clientId)) {
+          continue;
+        }
+        seenClientIds.add(clientId);
+        normalized.push({ clientId });
+        continue;
+      }
+
+      const trimmedName = participant.customName?.trim();
+      if (trimmedName) {
+        normalized.push({ customName: trimmedName });
+      }
+    }
+
+    return normalized;
+  }
+
+  private validateParticipantsConstraint(
+    type: SessionType,
+    participantsCount: number,
+    anonymousCount: number,
+  ): void {
+    if (anonymousCount < 0) {
+      throw new BadRequestException('Кількість учасників без імені не може бути відʼємною');
+    }
+
+    const totalParticipants = participantsCount + anonymousCount;
+    const exceedsIndividualLimit = type === SessionType.INDIVIDUAL && totalParticipants > 1;
+    if (exceedsIndividualLimit) {
+      throw new BadRequestException(
+        'Для індивідуального тренування може бути не більше 1 учасника',
+      );
+    }
+  }
 
   private normalizeReminderMode(mode?: string | number | null): string | undefined {
     if (mode === undefined || mode === null) {

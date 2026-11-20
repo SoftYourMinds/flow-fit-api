@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { SessionsService } from './sessions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TelegramService } from '../modules/telegram/telegram.service';
@@ -21,8 +21,10 @@ describe('SessionsService', () => {
     trainerId: mockTrainerId,
     locationId: 1,
     subscriptionId: null,
+    type: 'INDIVIDUAL',
     status: 'UPCOMING',
     price: 300,
+    anonymousParticipantsCount: 0,
     startTime: new Date('2026-10-01T10:00:00Z'),
     endTime: new Date('2026-10-01T11:00:00Z'),
     participants: [],
@@ -45,7 +47,9 @@ describe('SessionsService', () => {
         delete: jest.fn(),
       },
       sessionParticipant: {
+        create: jest.fn(),
         createMany: jest.fn(),
+        deleteMany: jest.fn(),
       },
       $transaction: jest.fn((callback: (tx: any) => any) => callback(prisma)),
     };
@@ -131,6 +135,49 @@ describe('SessionsService', () => {
         }),
       ).rejects.toThrow(ConflictException);
     });
+
+    it('should create GROUP session with combined anonymous count, clients, and custom names', async () => {
+      prisma.workoutSession.findFirst.mockResolvedValue(null);
+      prisma.workoutSession.create.mockResolvedValue({
+        ...mockSessionWithoutSub,
+        type: 'GROUP',
+        anonymousParticipantsCount: 3,
+      });
+
+      await service.create(mockTrainerId, {
+        locationId: 2,
+        type: 'GROUP',
+        startTime: '2026-11-13T12:00:00.000Z',
+        endTime: '2026-11-13T12:50:00.000Z',
+        anonymousParticipantsCount: 3,
+        participants: [{ clientId: 2 }, { customName: ' Аня ' }, { customName: 'Лера' }],
+      });
+
+      expect(prisma.workoutSession.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: 'GROUP',
+            anonymousParticipantsCount: 3,
+            participants: {
+              create: [{ clientId: 2 }, { customName: 'Аня' }, { customName: 'Лера' }],
+            },
+          }),
+        }),
+      );
+    });
+
+    it('should throw BadRequestException when INDIVIDUAL session exceeds 1 total participant', async () => {
+      await expect(
+        service.create(mockTrainerId, {
+          locationId: 2,
+          type: 'INDIVIDUAL',
+          startTime: '2026-11-13T12:00:00.000Z',
+          endTime: '2026-11-13T12:50:00.000Z',
+          anonymousParticipantsCount: 1,
+          participants: [{ clientId: 2 }],
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('update', () => {
@@ -155,6 +202,64 @@ describe('SessionsService', () => {
           }),
         }),
       );
+    });
+
+    it('should replace participants in transaction when participants array is provided', async () => {
+      prisma.workoutSession.findUnique.mockResolvedValue({
+        ...mockSessionWithoutSub,
+        type: 'GROUP',
+      });
+      prisma.workoutSession.update.mockResolvedValue({
+        ...mockSessionWithoutSub,
+        type: 'GROUP',
+        anonymousParticipantsCount: 2,
+      });
+
+      await service.update(mockTrainerId, mockSessionId, {
+        anonymousParticipantsCount: 2,
+        participants: [{ clientId: 7 }, { customName: 'Аня' }],
+      });
+
+      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(prisma.sessionParticipant.deleteMany).toHaveBeenCalledWith({
+        where: { sessionId: mockSessionId },
+      });
+      expect(prisma.sessionParticipant.createMany).toHaveBeenCalledWith({
+        data: [
+          { sessionId: mockSessionId, clientId: 7, customName: undefined },
+          { sessionId: mockSessionId, clientId: undefined, customName: 'Аня' },
+        ],
+      });
+    });
+
+    it('should throw BadRequestException when updating to INDIVIDUAL with more than 1 participant', async () => {
+      prisma.workoutSession.findUnique.mockResolvedValue({
+        ...mockSessionWithoutSub,
+        type: 'GROUP',
+        anonymousParticipantsCount: 2,
+        participants: [{ id: 1, clientId: 2, customName: null }],
+      });
+
+      await expect(
+        service.update(mockTrainerId, mockSessionId, {
+          type: 'INDIVIDUAL',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('addParticipant', () => {
+    it('should throw BadRequestException when adding a participant to an INDIVIDUAL session that already has 1 participant', async () => {
+      prisma.workoutSession.findUnique.mockResolvedValue({
+        ...mockSessionWithoutSub,
+        type: 'INDIVIDUAL',
+        anonymousParticipantsCount: 1,
+        participants: [],
+      });
+
+      await expect(
+        service.addParticipant(mockTrainerId, mockSessionId, { clientId: 3 }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
