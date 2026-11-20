@@ -179,10 +179,10 @@ export class SchedulerService {
         continue;
       }
 
-      const clientNames = session.participants
-        .map((p) => p.customName || p.client?.fullName)
-        .filter(Boolean)
-        .join(', ');
+      const participantsLabel = this.formatParticipantsLabel(
+        session.participants,
+        session.anonymousParticipantsCount,
+      );
 
       const timeStr = session.startTime.toLocaleTimeString('uk-UA', {
         hour: '2-digit',
@@ -191,7 +191,7 @@ export class SchedulerService {
       });
 
       const locName = session.location?.name || 'Локація';
-      const body = `О ${timeStr} — тренування на «${locName}»${clientNames ? ` (${clientNames})` : ''}`;
+      const body = `О ${timeStr} — тренування на «${locName}»${participantsLabel ? ` (${participantsLabel})` : ''}`;
 
       // 1. Web Push (always dispatched for sessions with enabled notifications)
       const sentPushCount = await this.webPushService.sendToUser(session.trainerId, {
@@ -356,11 +356,11 @@ export class SchedulerService {
       });
       const type = session.type === 'INDIVIDUAL' ? 'Персональне' : 'Спліт/Групове';
 
-      const participantNames = session.participants
-        .map((p) => p.customName || p.client?.fullName)
-        .filter(Boolean);
-      const clientNames =
-        participantNames.length > 0 ? participantNames.join(', ') : 'Без учасників';
+      const participantsLabel = this.formatParticipantsLabel(
+        session.participants,
+        session.anonymousParticipantsCount,
+      );
+      const clientNames = participantsLabel || 'Без учасників';
 
       message += `🕙 <b>${time}</b> — ${type} (${clientNames})\n`;
       if (session.location) {
@@ -445,5 +445,29 @@ export class SchedulerService {
       `Залишилось: ${remaining} з ${sub.totalSessions}\n\n` +
       `💡 <i>Час запропонувати продовження!</i>`
     );
+  }
+
+  private formatParticipantsLabel(
+    participants: Array<{ customName?: string | null; client?: { fullName: string } | null }>,
+    anonymousCount?: number,
+  ): string {
+    const names = participants
+      .map((p) => p.customName || p.client?.fullName)
+      .filter((name): name is string => Boolean(name));
+
+    const unnamedCount = anonymousCount ?? 0;
+    const hasNames = names.length > 0;
+    const hasUnnamed = unnamedCount > 0;
+
+    if (hasNames && hasUnnamed) {
+      return `${names.join(', ')}, +${unnamedCount} без імені`;
+    }
+    if (hasNames) {
+      return names.join(', ');
+    }
+    if (hasUnnamed) {
+      return `${unnamedCount} без імені`;
+    }
+    return '';
   }
 }

@@ -78,6 +78,30 @@ describe('SchedulerService workout reminders', () => {
     expect(updateCall[0].data.reminderSentAt).toBeInstanceOf(Date);
   });
 
+  it('includes both named and anonymous participants in reminder notification body', async () => {
+    const startTime = new Date(Date.now() + 30 * 60 * 1000);
+    webPushService.sendToUser.mockResolvedValue(1);
+    prisma.workoutSession.findMany.mockResolvedValue([
+      {
+        id: 103,
+        trainerId: 5,
+        startTime,
+        reminderMode: '60',
+        isCritical: false,
+        anonymousParticipantsCount: 3,
+        location: { name: 'Studio' },
+        trainer: { tgChatId: null },
+        participants: [{ customName: 'Аня', client: null }],
+      },
+    ]);
+
+    await service.sendWorkoutReminders();
+
+    const pushCall = webPushService.sendToUser.mock.calls[0] as [number, { body: string }];
+    expect(pushCall[0]).toBe(5);
+    expect(pushCall[1].body).toContain('(Аня, +3 без імені)');
+  });
+
   it('computes 20:00 Europe/Kyiv previous evening accurately in UTC', () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-07-14T10:00:00.000Z'));
     try {
